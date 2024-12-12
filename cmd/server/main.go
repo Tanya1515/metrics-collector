@@ -72,8 +72,6 @@ func ProcessMetrix(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 
 	rw.Write([]byte("Succesfully edit"))
-
-	return
 }
 
 func main() {
