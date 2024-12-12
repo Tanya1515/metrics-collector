@@ -10,10 +10,10 @@ type MemStorageInterface interface {
 	StorageAddGaugeValue()
 }
 
-func (S *MemStorage) StorageAddCounterValue(metric_name string, metric_value int64) {
-	S.CounterStorage[metric_name] = metric_value
+func (S *MemStorage) StorageAddCounterValue(metricName string, metricValue int64) {
+	S.CounterStorage[metricName] = metricValue
 }
 
-func (S *MemStorage) StorageAddGaugeValue(metric_name string, metric_value float64) {
-	S.GaugeStorage[metric_name] = metric_value
+func (S *MemStorage) StorageAddGaugeValue(metricName string, metricValue float64) {
+	S.GaugeStorage[metricName] = metricValue
 }
