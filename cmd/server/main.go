@@ -46,7 +46,7 @@ func ProcessRequest(Storage *MemStorage) http.HandlerFunc {
 			Storage.RepositoryAddGaugeValue(metrics[1], metricValueFloat64)
 		}
 
-		rw.Header().Set("Content-Type", "text/plain")
+		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		rw.WriteHeader(http.StatusOK)
 
 		rw.Write([]byte("Succesfully edit!"))

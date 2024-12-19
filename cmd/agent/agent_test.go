@@ -93,7 +93,3 @@ func TestMakeString(t *testing.T){
 		})
 	}
 }
-
-func TestSendMetrics(t *testing.T){
-
-}

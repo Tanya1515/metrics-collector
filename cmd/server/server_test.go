@@ -32,7 +32,7 @@ func TestProcessRequest(t *testing.T) {
 			result: http_result{
 				code:        200,
 				response:    "Succesfully edit!",
-				contentType: "text/plain",
+				contentType: "text/plain; charset=utf-8",
 			},
 			modify: "counter",
 		},
@@ -54,7 +54,7 @@ func TestProcessRequest(t *testing.T) {
 			result: http_result{
 				code: 200,
 				response: "Succesfully edit!",
-				contentType: "text/plain",
+				contentType: "text/plain; charset=utf-8",
 			},
 			modify: "gauge",
 		},
