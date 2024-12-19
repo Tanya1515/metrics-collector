@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
 	//"html/template"
 
 	"github.com/go-chi/chi/v5"
@@ -95,7 +96,7 @@ func GetMetric(Storage *MemStorage) http.HandlerFunc {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
 				return
 			}
-			rw.Write([]byte(fmt.Sprintf("%f", metricValue)))
+			rw.Write([]byte(strconv.FormatFloat(metricValue, 'f', -1, 64)))
 		} else {
 			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metric[0]), http.StatusBadRequest)
 			return
