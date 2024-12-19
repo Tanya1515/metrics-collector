@@ -81,18 +81,6 @@ func goSendMetrics(PCCh chan int, mapCh chan map[string]interface{}) {
 	}
 }
 
-func goGetMetrics(PCCh chan int, mapCh chan map[string]interface{}, mapMetrics *map[string]interface{}, PollCount *int) {
-	for {
-		time.Sleep(2 * time.Second)
-		GetMetrics(mapMetrics, PollCount)
-
-		if ((*PollCount % 5) == 0) && ((*PollCount) != 0) {
-			PCCh <- *PollCount
-			mapCh <- *mapMetrics
-		}
-	}
-}
-
 func main() {
 
 	fmt.Println("Start agent")
@@ -103,7 +91,15 @@ func main() {
 
 	mapCh := make(chan map[string]interface{})
 
-	go goGetMetrics(pollCountCh, mapCh, &mapMetrics, &PollCount)
-
 	go goSendMetrics(pollCountCh, mapCh)
+
+	for {
+		time.Sleep(2 * time.Second)
+		GetMetrics(&mapMetrics, &PollCount)
+
+		if PollCount%5 == 0 {
+			pollCountCh <- PollCount
+			mapCh <- mapMetrics
+		}
+	}
 }

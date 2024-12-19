@@ -4,14 +4,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"testing"
 	"strings"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-		
 func TestProcessRequest(t *testing.T) {
 	type httpResult struct {
 		code        int
@@ -26,9 +25,9 @@ func TestProcessRequest(t *testing.T) {
 		modify     string
 	}{
 		{
-			name: "test: Send correct counter value",
+			name:       "test: Send correct counter value",
 			metricInfo: "/update/counter/value/4",
-			storage: &MemStorage{CounterStorage: map[string][]int64{"PollCount": {1, 2, 3}}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
+			storage:    &MemStorage{CounterStorage: map[string][]int64{"PollCount": {1, 2, 3}}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
 			result: httpResult{
 				code:        200,
 				response:    "Succesfully edit!",
@@ -37,46 +36,46 @@ func TestProcessRequest(t *testing.T) {
 			modify: "counter",
 		},
 		{
-			name: "test: Send incorrect metric type",
+			name:       "test: Send incorrect metric type",
 			metricInfo: "/update/test/value/1.5",
-			storage: &MemStorage{CounterStorage: map[string][]int64{"PollCount": {1,2,3}}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
+			storage:    &MemStorage{CounterStorage: map[string][]int64{"PollCount": {1, 2, 3}}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
 			result: httpResult{
-				code: 400,
-				response: "Error 400: Invalid metric type: test\n",
+				code:        400,
+				response:    "Error 400: Invalid metric type: test\n",
 				contentType: "text/plain; charset=utf-8",
 			},
 			modify: "",
 		},
 		{
-			name: "test: Send correct gauge value",
+			name:       "test: Send correct gauge value",
 			metricInfo: "/update/gauge/value/1.5",
-			storage: &MemStorage{CounterStorage: map[string][]int64{"PollCount": {1,2,3}}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
+			storage:    &MemStorage{CounterStorage: map[string][]int64{"PollCount": {1, 2, 3}}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
 			result: httpResult{
-				code: 200,
-				response: "Succesfully edit!",
+				code:        200,
+				response:    "Succesfully edit!",
 				contentType: "text/plain; charset=utf-8",
 			},
 			modify: "gauge",
 		},
 		{
-			name: "test: Send incorrect counter value",
+			name:       "test: Send incorrect counter value",
 			metricInfo: "/update/counter/value/1.5",
-			storage: &MemStorage{CounterStorage: map[string][]int64{"PollCount": {1,2,3}}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
+			storage:    &MemStorage{CounterStorage: map[string][]int64{"PollCount": {1, 2, 3}}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
 			result: httpResult{
-					code: 400,
-					response: "Error 400: Invalid metric value: 1.5\n",
-					contentType: "text/plain; charset=utf-8",
-				},
+				code:        400,
+				response:    "Error 400: Invalid metric value: 1.5\n",
+				contentType: "text/plain; charset=utf-8",
+			},
 			modify: "",
 		},
 
 		{
-			name: "test: Send none metric name",
+			name:       "test: Send none metric name",
 			metricInfo: "/update/counter//1",
-			storage: &MemStorage{CounterStorage: map[string][]int64{"PollCount": {1,2,3}}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
+			storage:    &MemStorage{CounterStorage: map[string][]int64{"PollCount": {1, 2, 3}}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
 			result: httpResult{
-				code: 404,
-				response: "Error 404: Metric name was not found\n",
+				code:        404,
+				response:    "Error 404: Metric name was not found\n",
 				contentType: "text/plain; charset=utf-8",
 			},
 			modify: "",
@@ -101,11 +100,11 @@ func TestProcessRequest(t *testing.T) {
 
 			assert.Equal(t, test.result.response, string(resBody))
 
-			if test.modify == "counter"{
+			if test.modify == "counter" {
 				assert.Contains(t, test.storage.CounterStorage, (strings.Split(test.metricInfo, "/"))[3])
 			}
 
-			if test.modify == "gauge"{
+			if test.modify == "gauge" {
 				assert.Contains(t, test.storage.GaugeStorage, (strings.Split(test.metricInfo, "/"))[3])
 			}
 			assert.Equal(t, test.result.contentType, res.Header.Get("Content-Type"))
