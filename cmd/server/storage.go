@@ -2,7 +2,7 @@ package main
 
 import "errors"
 
-var ErrorMetricExists = errors.New("Error: metric does not exist on the server side")
+var errorMetricExists = errors.New("Error: metric does not exist on the server side")
 
 type MemStorage struct {
 	CounterStorage map[string][]int64
@@ -28,7 +28,7 @@ func (S *MemStorage) GetCounterValueByName(metricName string) ([]int64, error){
 			return value, nil
 		}
 	}
-	return []int64{}, ErrorMetricExists
+	return []int64{}, errorMetricExists
 }
 
 func (S *MemStorage) GetGaugeValueByName(metricName string) (float64, error){
@@ -37,5 +37,5 @@ func (S *MemStorage) GetGaugeValueByName(metricName string) (float64, error){
 			return value, nil
 		}
 	}
-	return 0, ErrorMetricExists
+	return 0, errorMetricExists
 }
