@@ -13,7 +13,7 @@ import (
 
 		
 func TestProcessRequest(t *testing.T) {
-	type http_result struct {
+	type httpResult struct {
 		code        int
 		response    string
 		contentType string
@@ -22,14 +22,14 @@ func TestProcessRequest(t *testing.T) {
 		name       string
 		metricInfo string
 		storage    *MemStorage
-		result     http_result
+		result     httpResult
 		modify     string
 	}{
 		{
 			name: "test: Send correct counter value",
 			metricInfo: "/update/counter/value/4",
 			storage: &MemStorage{CounterStorage: map[string][]int64{"PollCount": {1, 2, 3}}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
-			result: http_result{
+			result: httpResult{
 				code:        200,
 				response:    "Succesfully edit!",
 				contentType: "text/plain; charset=utf-8",
@@ -40,7 +40,7 @@ func TestProcessRequest(t *testing.T) {
 			name: "test: Send incorrect metric type",
 			metricInfo: "/update/test/value/1.5",
 			storage: &MemStorage{CounterStorage: map[string][]int64{"PollCount": {1,2,3}}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
-			result: http_result{
+			result: httpResult{
 				code: 400,
 				response: "Error 400: Invalid metric type: test\n",
 				contentType: "text/plain; charset=utf-8",
@@ -51,7 +51,7 @@ func TestProcessRequest(t *testing.T) {
 			name: "test: Send correct gauge value",
 			metricInfo: "/update/gauge/value/1.5",
 			storage: &MemStorage{CounterStorage: map[string][]int64{"PollCount": {1,2,3}}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
-			result: http_result{
+			result: httpResult{
 				code: 200,
 				response: "Succesfully edit!",
 				contentType: "text/plain; charset=utf-8",
@@ -62,7 +62,7 @@ func TestProcessRequest(t *testing.T) {
 			name: "test: Send incorrect counter value",
 			metricInfo: "/update/counter/value/1.5",
 			storage: &MemStorage{CounterStorage: map[string][]int64{"PollCount": {1,2,3}}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
-			result: http_result{
+			result: httpResult{
 					code: 400,
 					response: "Error 400: Invalid metric value: 1.5\n",
 					contentType: "text/plain; charset=utf-8",
@@ -74,7 +74,7 @@ func TestProcessRequest(t *testing.T) {
 			name: "test: Send none metric name",
 			metricInfo: "/update/counter//1",
 			storage: &MemStorage{CounterStorage: map[string][]int64{"PollCount": {1,2,3}}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
-			result: http_result{
+			result: httpResult{
 				code: 404,
 				response: "Error 404: Metric name was not found\n",
 				contentType: "text/plain; charset=utf-8",
