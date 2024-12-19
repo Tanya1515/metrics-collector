@@ -1,6 +1,8 @@
 package main
 
-import "errors"
+import (
+	"github.com/pkg/errors"
+)
 
 var errorMetricExists = errors.New("error: metric does not exist on the server side")
 
@@ -28,7 +30,7 @@ func (S *MemStorage) GetCounterValueByName(metricName string) ([]int64, error) {
 			return value, nil
 		}
 	}
-	return []int64{}, errorMetricExists
+	return []int64{}, errors.Wrapf(errorMetricExists, "%s in counter storage", metricName)
 }
 
 func (S *MemStorage) GetGaugeValueByName(metricName string) (float64, error) {
@@ -37,5 +39,5 @@ func (S *MemStorage) GetGaugeValueByName(metricName string) (float64, error) {
 			return value, nil
 		}
 	}
-	return 0, errorMetricExists
+	return 0, errors.Wrapf(errorMetricExists, "%s in gauge storage", metricName)
 }
