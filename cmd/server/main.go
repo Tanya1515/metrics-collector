@@ -5,9 +5,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-)
+	//"html/template"
 
-// func Split(s, sep string) []string - переписать, спросить у ментора, почему не работает PathValue
+	"github.com/go-chi/chi/v5"
+)
 
 func ProcessRequest(Storage *MemStorage) http.HandlerFunc {
 
@@ -54,13 +55,67 @@ func ProcessRequest(Storage *MemStorage) http.HandlerFunc {
 	}
 }
 
+func HTMLMetrics(Storage *MemStorage) http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(rw, "Error 405: only GET-requests are allowed", http.StatusMethodNotAllowed)
+			return
+		}
+	}
+}
+
+func GetMetric(Storage *MemStorage) http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(rw, "Error 405: only GET-requests are allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		metric := strings.Split(strings.TrimPrefix(r.URL.Path, "/value/"), "/")
+
+		if metric[1] == "" {
+			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
+			return
+		}
+
+		if metric[0] == "counter" {
+			metricValue, err := Storage.GetCounterValueByName(metric[1])
+			if err != nil {
+				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
+				return
+			}
+			builder := strings.Builder{}
+			for _, value := range metricValue {
+				builder.WriteString(strconv.FormatInt(value, 10))
+			}
+
+			rw.Write([]byte(builder.String()))
+		} else if metric[0] == "gauge" {
+			metricValue, err := Storage.GetGaugeValueByName(metric[1])
+			if err != nil {
+				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
+				return
+			}
+			rw.Write([]byte(fmt.Sprintf("%f", metricValue)))
+		} else {
+			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metric[0]), http.StatusBadRequest)
+			return
+		}
+
+		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		rw.WriteHeader(http.StatusOK)
+	}
+}
+
 func main() {
 	var Storage = &MemStorage{CounterStorage: make(map[string][]int64, 100), GaugeStorage: make(map[string]float64, 100)}
-	mux := http.NewServeMux()
-	// Handle registers the handler for the given pattern in Router/mux
-	// otherwise HandleFunc registers the handler function for the given pattern in
-	mux.HandleFunc(`/update/{metricType}/{metricName}/{metricValue}`, ProcessRequest(Storage))
-	err := http.ListenAndServe(":8080", mux)
+
+	r := chi.NewRouter()
+	r.Route("/", func(r chi.Router) {
+		r.Get("/", HTMLMetrics(Storage))
+		r.Get("/value/{metricType}/{metricName}", GetMetric(Storage))
+		r.Post("/update/{metricType}/{metricName}/{metricValue}", ProcessRequest(Storage))
+	})
+	err := http.ListenAndServe(":8080", r)
 	if err != nil {
 		panic(err)
 	}
