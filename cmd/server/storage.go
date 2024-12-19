@@ -1,5 +1,9 @@
 package main
 
+import "errors"
+
+var ErrorMetricExists = errors.New("Error: metric does not exist on the server side")
+
 type MemStorage struct {
 	CounterStorage map[string][]int64
 	GaugeStorage   map[string]float64
@@ -16,4 +20,22 @@ func (S *MemStorage) RepositoryAddCounterValue(metricName string, metricValue in
 
 func (S *MemStorage) RepositoryAddGaugeValue(metricName string, metricValue float64) {
 	S.GaugeStorage[metricName] = metricValue
+}
+
+func (S *MemStorage) GetCounterValueByName(metricName string) ([]int64, error){
+	for key, value := range S.CounterStorage{
+		if key == metricName{
+			return value, nil
+		}
+	}
+	return []int64{}, ErrorMetricExists
+}
+
+func (S *MemStorage) GetGaugeValueByName(metricName string) (float64, error){
+	for key, value := range S.GaugeStorage{
+		if key == metricName{
+			return value, nil
+		}
+	}
+	return 0, ErrorMetricExists
 }
