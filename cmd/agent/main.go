@@ -65,12 +65,15 @@ func goSendMetrics(PCCh chan int, mapCh chan map[string]interface{}) {
 		for metricName, metricValue := range mapMetrics {
 			metricValueStr := fmt.Sprint(metricValue)
 			requestString := MakeString(metricName, metricValueStr, "gauge")
-			_, err := http.Post(requestString, "text/plain", nil)
+			resp, err := http.Post(requestString, "text/plain", nil)
 			if err != nil {
 				fmt.Printf("Error while sending metric %s: %s", metricName, err)
 			}
+			resp.Body.Close()
+
 			requestString = MakeString(metricName, fmt.Sprint(PollCount), "counter")
-			_, err = http.Post(requestString, "text/plain", nil)
+			resp, err = http.Post(requestString, "text/plain", nil)
+			resp.Body.Close()
 			if err != nil {
 				fmt.Printf("Error while sending PollCounter for metric %s: %s", metricName, err)
 			}
@@ -92,7 +95,7 @@ func goGetMetrics(PCCh chan int, mapCh chan map[string]interface{}, mapMetrics *
 
 func main() {
 
-	fmt.Println("Start agent\n")
+	fmt.Println("Start agent")
 	mapMetrics := make(map[string]interface{}, 20)
 	PollCount := 0
 
@@ -103,7 +106,4 @@ func main() {
 	go goGetMetrics(pollCountCh, mapCh, &mapMetrics, &PollCount)
 
 	go goSendMetrics(pollCountCh, mapCh)
-
-	for {}
-
 }
