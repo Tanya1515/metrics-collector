@@ -32,7 +32,7 @@ func TestCheckValue(t * testing.T){
 }
 
 func TestGetMetrics(t * testing.T){
-	type test_result struct {
+	type testResult struct {
 		mapMetricslen int
 		PollCount int
 	}
@@ -40,13 +40,13 @@ func TestGetMetrics(t * testing.T){
 		name string 
 		mapMetrics map[string]interface{}
 		PollCount int
-		result test_result
+		result testResult
 	}{
 		{
 			name: "test: Get Metrics",
 			mapMetrics: make(map[string]interface{}, 20),
 			PollCount: 0,
-			result: test_result{
+			result: testResult{
 				mapMetricslen: 28,
 				PollCount: 1,
 			},

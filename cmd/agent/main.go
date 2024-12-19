@@ -64,13 +64,13 @@ func goSendMetrics(PCCh chan int, mapCh chan map[string]interface{}) {
 
 		for metricName, metricValue := range mapMetrics {
 			metricValueStr := fmt.Sprint(metricValue)
-			request_string := MakeString(metricName, metricValueStr, "gauge")
-			_, err := http.Post(request_string, "text/plain", nil)
+			requestString := MakeString(metricName, metricValueStr, "gauge")
+			_, err := http.Post(requestString, "text/plain", nil)
 			if err != nil {
 				fmt.Printf("Error while sending metric %s: %s", metricName, err)
 			}
-			request_string = MakeString(metricName, fmt.Sprint(PollCount), "counter")
-			_, err = http.Post(request_string, "text/plain", nil)
+			requestString = MakeString(metricName, fmt.Sprint(PollCount), "counter")
+			_, err = http.Post(requestString, "text/plain", nil)
 			if err != nil {
 				fmt.Printf("Error while sending PollCounter for metric %s: %s", metricName, err)
 			}
