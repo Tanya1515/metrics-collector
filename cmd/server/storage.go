@@ -7,8 +7,8 @@ import (
 var errorMetricExists = errors.New("metric ")
 
 type MemStorage struct {
-	CounterStorage map[string][]int64
-	GaugeStorage   map[string]float64
+	CounterStorage map[string] int64
+	GaugeStorage   map[string] float64
 }
 
 type ReposutiryInterface interface {
@@ -17,20 +17,20 @@ type ReposutiryInterface interface {
 }
 
 func (S *MemStorage) RepositoryAddCounterValue(metricName string, metricValue int64) {
-	S.CounterStorage[metricName] = append(S.CounterStorage[metricName], metricValue)
+	S.CounterStorage[metricName] = S.CounterStorage[metricName] + metricValue
 }
 
 func (S *MemStorage) RepositoryAddGaugeValue(metricName string, metricValue float64) {
 	S.GaugeStorage[metricName] = metricValue
 }
 
-func (S *MemStorage) GetCounterValueByName(metricName string) ([]int64, error) {
+func (S *MemStorage) GetCounterValueByName(metricName string) (int64, error) {
 	for key, value := range S.CounterStorage {
 		if key == metricName {
 			return value, nil
 		}
 	}
-	return []int64{}, errors.Wrapf(errorMetricExists, "%s does not exist in counter storage", metricName)
+	return 0, errors.Wrapf(errorMetricExists, "%s does not exist in counter storage", metricName)
 }
 
 func (S *MemStorage) GetGaugeValueByName(metricName string) (float64, error) {

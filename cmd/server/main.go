@@ -76,20 +76,13 @@ func HTMLMetrics(Storage *MemStorage) http.HandlerFunc {
 		gaugeResult := builder.String()
 
 		builder = strings.Builder{}
-		for key, arr := range Storage.CounterStorage {
+		for key, value := range Storage.CounterStorage {
 			builder.WriteString(key)
 			builder.WriteString(": ")
-			for ind, arrValue := range arr {
-				builder.WriteString(strconv.FormatInt(arrValue, 10))
-				if ind != (len(arr) - 1) {
-					builder.WriteString(", ")
-				}
-			}
+			builder.WriteString(strconv.FormatInt(value, 10))
 			builder.WriteString(" \n")
 		}
 		counterResult := builder.String()
-
-		fmt.Println(counterResult)
 
 		res := ResultMetrics{GaugeMetrics: gaugeResult, CounterMetrics: counterResult}
 
@@ -121,12 +114,7 @@ func GetMetric(Storage *MemStorage) http.HandlerFunc {
 				return
 			}
 			builder := strings.Builder{}
-			for ind, value := range metricValue {
-				builder.WriteString(strconv.FormatInt(value, 10))
-				if ind != (len(metricValue) - 1) {
-					builder.WriteString(", ")
-				}
-			}
+			builder.WriteString(strconv.FormatInt(metricValue, 10))
 			rw.Write([]byte(builder.String()))
 		} else if metric[0] == "gauge" {
 			metricValue, err := Storage.GetGaugeValueByName(metric[1])
@@ -146,7 +134,7 @@ func GetMetric(Storage *MemStorage) http.HandlerFunc {
 }
 
 func main() {
-	var Storage = &MemStorage{CounterStorage: make(map[string][]int64, 100), GaugeStorage: make(map[string]float64, 100)}
+	var Storage = &MemStorage{CounterStorage: make(map[string]int64, 100), GaugeStorage: make(map[string]float64, 100)}
 
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
