@@ -3,11 +3,12 @@ package main
 import (
 	"fmt"
 	"math/rand"
-	"net/http"
 	"reflect"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/go-resty/resty/v2"
 )
 
 func CheckValue(fieldName string) bool {
@@ -58,6 +59,8 @@ func MakeString(metricName, metricValue, metricType string) string {
 }
 
 func goSendMetrics(PCCh chan int, mapCh chan map[string]interface{}) {
+	client := resty.New()
+
 	for {
 		PollCount := <-PCCh
 		mapMetrics := <-mapCh
@@ -65,15 +68,17 @@ func goSendMetrics(PCCh chan int, mapCh chan map[string]interface{}) {
 		for metricName, metricValue := range mapMetrics {
 			metricValueStr := fmt.Sprint(metricValue)
 			requestString := MakeString(metricName, metricValueStr, "gauge")
-			resp, err := http.Post(requestString, "text/plain", nil)
+			_, err := client.R().
+				SetHeader("Content-Type", "text/plain").
+				Post(requestString)
 			if err != nil {
 				fmt.Printf("Error while sending metric %s: %s", metricName, err)
 			}
-			resp.Body.Close()
 
 			requestString = MakeString(metricName, fmt.Sprint(PollCount), "counter")
-			resp, err = http.Post(requestString, "text/plain", nil)
-			resp.Body.Close()
+			_, err = client.R().
+				SetHeader("Content-Type", "text/plain").
+				Post(requestString)
 			if err != nil {
 				fmt.Printf("Error while sending PollCounter for metric %s: %s", metricName, err)
 			}
