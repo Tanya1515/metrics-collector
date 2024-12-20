@@ -2,14 +2,18 @@ package main
 
 import (
 	"fmt"
+	"html/template"
 	"net/http"
 	"strconv"
 	"strings"
 
-	//"html/template"
-
 	"github.com/go-chi/chi/v5"
 )
+
+type ResultMetrics struct {
+	GaugeMetrics   string
+	CounterMetrics string
+}
 
 func ProcessRequest(Storage *MemStorage) http.HandlerFunc {
 
@@ -62,6 +66,38 @@ func HTMLMetrics(Storage *MemStorage) http.HandlerFunc {
 			http.Error(rw, "Error 405: only GET-requests are allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		builder := strings.Builder{}
+		for key, value := range Storage.GaugeStorage {
+			builder.WriteString(key)
+			builder.WriteString(": ")
+			builder.WriteString(strconv.FormatFloat(value, 'f', -1, 64))
+			builder.WriteString(" \n")
+		}
+		gaugeResult := builder.String()
+
+		builder = strings.Builder{}
+		for key, arr := range Storage.CounterStorage {
+			builder.WriteString(key)
+			builder.WriteString(": ")
+			for ind, arrValue := range arr {
+				builder.WriteString(strconv.FormatInt(arrValue, 10))
+				if ind != (len(arr) - 1) {
+					builder.WriteString(", ")
+				}
+			}
+			builder.WriteString(" \n")
+		}
+		counterResult := builder.String()
+
+		fmt.Println(counterResult)
+
+		res := ResultMetrics{GaugeMetrics: gaugeResult, CounterMetrics: counterResult}
+
+		t, err := template.ParseFiles("./html/metrics.html")
+		if err != nil {
+			http.Error(rw, "Error 500: error while processing html page", http.StatusInternalServerError)
+		}
+		t.Execute(rw, res)
 	}
 }
 
@@ -85,10 +121,12 @@ func GetMetric(Storage *MemStorage) http.HandlerFunc {
 				return
 			}
 			builder := strings.Builder{}
-			for _, value := range metricValue {
+			for ind, value := range metricValue {
 				builder.WriteString(strconv.FormatInt(value, 10))
+				if ind != (len(metricValue) - 1) {
+					builder.WriteString(", ")
+				}
 			}
-
 			rw.Write([]byte(builder.String()))
 		} else if metric[0] == "gauge" {
 			metricValue, err := Storage.GetGaugeValueByName(metric[1])
