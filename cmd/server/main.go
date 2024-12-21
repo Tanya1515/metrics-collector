@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"flag"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -13,6 +14,14 @@ import (
 type ResultMetrics struct {
 	GaugeMetrics   string
 	CounterMetrics string
+}
+
+var (
+	serverAddress  *string
+)
+
+func init() {
+	serverAddress = flag.String("a", "localhost:8080", "server address")
 }
 
 func ProcessRequest(Storage *MemStorage) http.HandlerFunc {
@@ -136,13 +145,15 @@ func GetMetric(Storage *MemStorage) http.HandlerFunc {
 func main() {
 	var Storage = &MemStorage{CounterStorage: make(map[string]int64, 100), GaugeStorage: make(map[string]float64, 100)}
 
+	flag.Parse()
+
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", HTMLMetrics(Storage))
 		r.Get("/value/{metricType}/{metricName}", GetMetric(Storage))
 		r.Post("/update/{metricType}/{metricName}/{metricValue}", ProcessRequest(Storage))
 	})
-	err := http.ListenAndServe(":8080", r)
+	err := http.ListenAndServe(*serverAddress, r)
 	if err != nil {
 		panic(err)
 	}

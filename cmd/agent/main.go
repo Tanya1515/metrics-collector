@@ -1,15 +1,29 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"math/rand"
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 )
+
+var (
+	reportInterval *time.Duration
+	pollInterval   *time.Duration
+	serverAddress  *string
+)
+
+func init() {
+	reportInterval = flag.Duration("r", 10, "time duration for sending metrics")
+	pollInterval = flag.Duration("p", 2, "time duration for getting metrics")
+	serverAddress = flag.String("a", "localhost:8080", "server address")
+}
 
 func CheckValue(fieldName string) bool {
 	gaugeMetrics := [...]string{"Alloc", "BuckHashSys", "Frees", "GCCPUFraction", "GCSys", "HeapAlloc", "HeapIdle", "HeapInuse", "HeapInuse", "HeapObjects", "HeapReleased", "HeapSys", "LastGC", "Lookups", "MCacheInuse", "MCacheSys", "MSpanInuse", "MSpanSys", "Mallocs", "NextGC", "NumForcedGC", "NumGC", "OtherSys", "PauseTotalNs", "StackInuse", "StackSys", "Sys", "TotalAlloc"}
@@ -22,34 +36,45 @@ func CheckValue(fieldName string) bool {
 	return false
 }
 
-func GetMetrics(mapMetrics *map[string]interface{}, PollCount *int) {
+func GetMetrics(mapMetrics *map[string]interface{}, PollCount *int, timer time.Duration, mutex *sync.RWMutex) {
 	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
-	val := reflect.ValueOf(memStats)
+	for {
+		fmt.Println(timer)
+		time.Sleep(timer * time.Second)
+		fmt.Println("Hello!")
+		runtime.ReadMemStats(&memStats)
+		val := reflect.ValueOf(memStats)
 
-	for fieldIndex := 0; fieldIndex < val.NumField(); fieldIndex++ {
-		field := val.Field(fieldIndex)
-		fieldName := val.Type().Field(fieldIndex).Name
-		if CheckValue(fieldName) {
-			(*mapMetrics)[fieldName] = field
+		mutex.Lock()
+		for fieldIndex := 0; fieldIndex < val.NumField(); fieldIndex++ {
+			field := val.Field(fieldIndex)
+			fieldName := val.Type().Field(fieldIndex).Name
+			if CheckValue(fieldName) {
+				(*mapMetrics)[fieldName] = field
+			}
 		}
+		(*mapMetrics)["RandomValue"] = rand.Float64()
+		(*PollCount) += 1
+		mutex.Unlock()
 	}
-	(*mapMetrics)["RandomValue"] = rand.Float64()
-	(*PollCount) += 1
 }
 
-func MakeString(metricName, metricValue, metricType string) string {
+func MakeString(serverAddress, metricName, metricValue, metricType string) string {
 	builder := strings.Builder{}
 
 	if metricType == "gauge" {
-		builder.WriteString("http://127.0.0.1:8080/update/gauge/")
+		builder.WriteString("http://")
+		builder.WriteString(serverAddress)
+		builder.WriteString("/update/gauge/")
 		builder.WriteString(metricName)
 		builder.WriteString("/")
 		builder.WriteString(metricValue)
 	}
 
 	if metricType == "counter" {
-		builder.WriteString("http://127.0.0.1:8080/update/counter/PollCount")
+		builder.WriteString("http://")
+		builder.WriteString(serverAddress)
+		builder.WriteString("/update/counter/PollCount")
 		builder.WriteString(metricName)
 		builder.WriteString("/")
 		builder.WriteString(metricValue)
@@ -58,16 +83,26 @@ func MakeString(metricName, metricValue, metricType string) string {
 	return builder.String()
 }
 
-func goSendMetrics(PCCh chan int, mapCh chan map[string]interface{}) {
+func main() {
+
+	fmt.Println("Start agent")
+	mapMetrics := make(map[string]interface{}, 20)
+	PollCount := 0
 	client := resty.New()
 
-	for {
-		PollCount := <-PCCh
-		mapMetrics := <-mapCh
+	var mutex sync.RWMutex
 
+	flag.Parse()
+
+	go GetMetrics(&mapMetrics, &PollCount, (*pollInterval), &mutex)
+
+	for {
+		time.Sleep((*reportInterval) * time.Second)
+		mutex.RLock()
 		for metricName, metricValue := range mapMetrics {
+			fmt.Println("Send metrics")
 			metricValueStr := fmt.Sprint(metricValue)
-			requestString := MakeString(metricName, metricValueStr, "gauge")
+			requestString := MakeString(*serverAddress, metricName, metricValueStr, "gauge")
 			_, err := client.R().
 				SetHeader("Content-Type", "text/plain").
 				Post(requestString)
@@ -75,7 +110,7 @@ func goSendMetrics(PCCh chan int, mapCh chan map[string]interface{}) {
 				fmt.Printf("Error while sending metric %s: %s", metricName, err)
 			}
 
-			requestString = MakeString(metricName, fmt.Sprint(PollCount), "counter")
+			requestString = MakeString(*serverAddress, metricName, fmt.Sprint(PollCount), "counter")
 			_, err = client.R().
 				SetHeader("Content-Type", "text/plain").
 				Post(requestString)
@@ -83,28 +118,6 @@ func goSendMetrics(PCCh chan int, mapCh chan map[string]interface{}) {
 				fmt.Printf("Error while sending PollCounter for metric %s: %s", metricName, err)
 			}
 		}
-	}
-}
-
-func main() {
-
-	fmt.Println("Start agent")
-	mapMetrics := make(map[string]interface{}, 20)
-	PollCount := 0
-
-	pollCountCh := make(chan int)
-
-	mapCh := make(chan map[string]interface{})
-
-	go goSendMetrics(pollCountCh, mapCh)
-
-	for {
-		time.Sleep(2 * time.Second)
-		GetMetrics(&mapMetrics, &PollCount)
-
-		if PollCount%5 == 0 {
-			pollCountCh <- PollCount
-			mapCh <- mapMetrics
-		}
+		mutex.RUnlock()
 	}
 }
