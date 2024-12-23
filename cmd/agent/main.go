@@ -39,9 +39,7 @@ func CheckValue(fieldName string) bool {
 func GetMetrics(mapMetrics *map[string]interface{}, PollCount *int, timer time.Duration, mutex *sync.RWMutex) {
 	var memStats runtime.MemStats
 	for {
-		fmt.Println(timer)
 		time.Sleep(timer * time.Second)
-		fmt.Println("Hello!")
 		runtime.ReadMemStats(&memStats)
 		val := reflect.ValueOf(memStats)
 
