@@ -39,7 +39,6 @@ func CheckValue(fieldName string) bool {
 func GetMetrics(mapMetrics *map[string]interface{}, PollCount *int, timer time.Duration, mutex *sync.RWMutex) {
 	var memStats runtime.MemStats
 	for {
-		time.Sleep(timer * time.Second)
 		runtime.ReadMemStats(&memStats)
 		val := reflect.ValueOf(memStats)
 
@@ -54,6 +53,7 @@ func GetMetrics(mapMetrics *map[string]interface{}, PollCount *int, timer time.D
 		(*mapMetrics)["RandomValue"] = rand.Float64()
 		(*PollCount) += 1
 		mutex.Unlock()
+		time.Sleep(timer * time.Second)
 	}
 }
 
@@ -86,6 +86,7 @@ func main() {
 	fmt.Println("Start agent")
 	mapMetrics := make(map[string]interface{}, 20)
 	PollCount := 0
+
 	client := resty.New()
 
 	var mutex sync.RWMutex
@@ -98,7 +99,6 @@ func main() {
 		time.Sleep((*reportInterval) * time.Second)
 		mutex.RLock()
 		for metricName, metricValue := range mapMetrics {
-			fmt.Println("Send metrics")
 			metricValueStr := fmt.Sprint(metricValue)
 			requestString := MakeString(*serverAddress, metricName, metricValueStr, "gauge")
 			_, err := client.R().
