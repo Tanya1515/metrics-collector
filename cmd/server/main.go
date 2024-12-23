@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -137,7 +138,12 @@ func main() {
 		r.Post("/update/{metricType}/{metricName}/{metricValue}", ProcessRequest(Storage))
 	})
 
-	err := http.ListenAndServe(*serverAddress, r)
+	serverAddress, envExists := os.LookupEnv("ADDRESS")
+	if !(envExists) {
+		serverAddress = "localhost:8080"
+	}
+	fmt.Println(serverAddress)
+	err := http.ListenAndServe(serverAddress, r)
 	if err != nil {
 		panic(err)
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"os"
 
 	"github.com/go-resty/resty/v2"
 )
@@ -93,6 +94,21 @@ func main() {
 
 	flag.Parse()
 
+	serverAddress, addressExists := os.LookupEnv("ADDRESS")
+	if !(addressExists) {
+		serverAddress = "localhost:8080"
+	}
+
+	reportinterval, reportIntExists := os.LookupEnv("REPORT_INTERVAL")
+	if !(reportIntExists){
+		reportinterval = "10"
+	}
+
+	pollInterval, pollIntervalExist := os.LookupEnv("POLL_INTERVAL")
+	if !(pollIntervalExist){
+		pollInterval = "2"
+	}
+
 	go GetMetrics(&mapMetrics, &PollCount, time.Duration(*pollInterval), &mutex)
 
 	for {
@@ -116,6 +132,6 @@ func main() {
 				fmt.Printf("Error while sending PollCounter for metric %s: %s", metricName, err)
 			}
 		}
-		mutex.RUnlock()
 	}
 }
+
