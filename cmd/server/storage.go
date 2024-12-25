@@ -8,6 +8,7 @@ import (
 
 var errorMetricExists = errors.New("ErrMetricExists")
 
+
 type MemStorage struct {
 	CounterStorage map[string]int64
 	GaugeStorage   map[string]float64
