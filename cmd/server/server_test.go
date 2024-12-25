@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestProcessRequest(t *testing.T) {
@@ -85,11 +86,17 @@ func TestProcessRequest(t *testing.T) {
 	for _, test := range tests {
 		t.Run("Test:", func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, test.metricInfo, nil)
-			App := Application{Storage: test.storage}
+			logger, err := zap.NewDevelopment()
+			if err != nil {
+				panic(err)
+			}
+
+			defer logger.Sync()
+			App := Application{Storage: test.storage, logger: *logger.Sugar()}
 
 			w := httptest.NewRecorder()
 
-			h := http.HandlerFunc(App.ProcessRequest())
+			h := http.HandlerFunc(App.WithLogger(App.UpdateValue()))
 			h(w, request)
 
 			res := w.Result()
@@ -113,7 +120,7 @@ func TestProcessRequest(t *testing.T) {
 	}
 }
 
-func TestGetMetric(t *testing.T){
+func TestGetMetric(t *testing.T) {
 	type httpResult struct {
 		code        int
 		response    string
@@ -187,15 +194,21 @@ func TestGetMetric(t *testing.T){
 		},
 	}
 
-	for _, test := range tests{
+	for _, test := range tests {
 		t.Run("Test:", func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, test.metricInfo, nil)
 
-			App := Application{Storage: test.storage}
+			logger, err := zap.NewDevelopment()
+			if err != nil {
+				panic(err)
+			}
+
+			defer logger.Sync()
+			App := Application{Storage: test.storage, logger: *logger.Sugar()}
 
 			w := httptest.NewRecorder()
 
-			h := http.HandlerFunc(App.GetMetric())
+			h := http.HandlerFunc(App.WithLogger(App.GetMetric()))
 			h(w, request)
 
 			res := w.Result()

@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
@@ -23,9 +24,12 @@ type Application struct{
 	logger zap.SugaredLogger
 }
 
-func (App *Application) ProcessRequest() http.HandlerFunc {
-
-	return func(rw http.ResponseWriter, r *http.Request) {
+func (App *Application) UpdateValue() http.Handler {
+	updateValuefunc := func(rw http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(rw, "Error 405: only POST-requests are allowed", http.StatusMethodNotAllowed)
+			return
+		}
 
 		metrics := strings.Split(strings.TrimPrefix(r.URL.Path, "/update/"), "/")
 
@@ -62,10 +66,15 @@ func (App *Application) ProcessRequest() http.HandlerFunc {
 		rw.Write([]byte("Succesfully edit!"))
 
 	}
+	return http.HandlerFunc(updateValuefunc)
 }
 
-func (App *Application) HTMLMetrics() http.HandlerFunc {
-	return func(rw http.ResponseWriter, r *http.Request) {
+func (App *Application) HTMLMetrics() http.Handler {
+	htmlMetricsfunc := func(rw http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(rw, "Error 405: only GET-requests are allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		builder := strings.Builder{}
 		for key, value := range App.Storage.GaugeStorage {
 			builder.WriteString(key)
@@ -92,10 +101,16 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 		}
 		t.Execute(rw, res)
 	}
+
+	return http.HandlerFunc(htmlMetricsfunc)
 }
 
-func (App *Application) GetMetric() http.HandlerFunc {
-	return func(rw http.ResponseWriter, r *http.Request) {
+func (App *Application) GetMetric() http.Handler {
+	getMetricfunc := func(rw http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(rw, "Error 405: only GET-requests are allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		metric := strings.Split(strings.TrimPrefix(r.URL.Path, "/value/"), "/")
 
 		if metric[1] == "" {
@@ -129,6 +144,39 @@ func (App *Application) GetMetric() http.HandlerFunc {
 		rw.Write([]byte(metricRes))
 		
 	}
+
+	return http.HandlerFunc(getMetricfunc)
+}
+
+func (App * Application) WithLogger(h http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		uri := r.RequestURI
+		method := r.Method
+
+		responseData := &ResponseData {
+            status: 0,
+            size: 0,
+        }
+
+		lw := LoggingResponseWriter{
+			w,
+			responseData,
+		}
+
+		h.ServeHTTP(&lw, r)
+
+		duration := time.Since(start)
+
+		App.logger.Infoln(
+			"URI", uri,
+			"Method", method,
+			"Duration", duration,
+			"ResponseStatus", responseData.status,
+			"ResponseSize", responseData.size,
+		)
+
+	}
 }
 
 func main() {
@@ -141,24 +189,24 @@ func main() {
 	serverAddress := "localhost:8080"
 
 	logger, err := zap.NewDevelopment()
-    if err != nil {
-        panic(err)
-    }
+	if err != nil {
+		panic(err)
+	}
 
 	defer logger.Sync()
 
 	App := Application{Storage: Storage, logger: *logger.Sugar()}
 
 	App.logger.Infow(
-        "Starting server",
-        "addr", serverAddress,
-    )
+		"Starting server",
+		"addr", serverAddress,
+	)
 
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
-		r.Get("/", App.HTMLMetrics())
-		r.Get("/value/{metricType}/{metricName}", App.GetMetric())
-		r.Post("/update/{metricType}/{metricName}/{metricValue}", App.ProcessRequest())
+		r.Get("/", App.WithLogger(App.HTMLMetrics()))
+		r.Get("/value/{metricType}/{metricName}", App.WithLogger(App.GetMetric()))
+		r.Post("/update/{metricType}/{metricName}/{metricValue}", App.WithLogger(App.UpdateValue()))
 	})
 
 	serverAddress, envExists := os.LookupEnv("ADDRESS")
