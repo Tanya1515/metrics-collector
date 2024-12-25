@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 )
 
 type ResultMetrics struct {
@@ -20,6 +21,7 @@ type ResultMetrics struct {
 
 type Application struct {
 	Storage *MemStorage
+	logger  zap.SugaredLogger
 }
 
 func (App *Application) ProcessRequest() http.HandlerFunc {
@@ -135,10 +137,25 @@ func (App *Application) GetMetric() http.HandlerFunc {
 func main() {
 	var mutex sync.Mutex
 	var Storage = &MemStorage{CounterStorage: make(map[string]int64, 100), GaugeStorage: make(map[string]float64, 100), mutex: &mutex}
-	App := Application{Storage: Storage}
 	serverAddressFlag := flag.String("a", "localhost:8080", "server address")
 
 	flag.Parse()
+
+	serverAddress := "localhost:8080"
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+
+	defer logger.Sync()
+
+	App := Application{Storage: Storage, logger: *logger.Sugar()}
+
+	App.logger.Infow(
+		"Starting server",
+		"addr", serverAddress,
+	)
 
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
@@ -152,8 +169,8 @@ func main() {
 		serverAddress = *serverAddressFlag
 	}
 	fmt.Printf("Start server on address %s\n", serverAddress)
-	err := http.ListenAndServe(serverAddress, r)
+	err = http.ListenAndServe(serverAddress, r)
 	if err != nil {
-		panic(err)
+		App.logger.Fatalw(err.Error(), "event", "start server")
 	}
 }
