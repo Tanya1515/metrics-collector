@@ -19,10 +19,6 @@ type ResultMetrics struct {
 func ProcessRequest(Storage *MemStorage) http.HandlerFunc {
 
 	return func(rw http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(rw, "Error 405: only POST-requests are allowed", http.StatusMethodNotAllowed)
-			return
-		}
 
 		metrics := strings.Split(strings.TrimPrefix(r.URL.Path, "/update/"), "/")
 
@@ -63,10 +59,6 @@ func ProcessRequest(Storage *MemStorage) http.HandlerFunc {
 
 func HTMLMetrics(Storage *MemStorage) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(rw, "Error 405: only GET-requests are allowed", http.StatusMethodNotAllowed)
-			return
-		}
 		builder := strings.Builder{}
 		for key, value := range Storage.GaugeStorage {
 			builder.WriteString(key)
@@ -97,10 +89,6 @@ func HTMLMetrics(Storage *MemStorage) http.HandlerFunc {
 
 func GetMetric(Storage *MemStorage) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(rw, "Error 405: only GET-requests are allowed", http.StatusMethodNotAllowed)
-			return
-		}
 		metric := strings.Split(strings.TrimPrefix(r.URL.Path, "/value/"), "/")
 
 		if metric[1] == "" {
