@@ -139,7 +139,7 @@ func main() {
 
 	serverAddress := flag.String("a", "localhost:8080", "server address")
 	flag.Parse()
-
+	fmt.Printf("Server: %v\n", *serverAddress)
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", HTMLMetrics(Storage))
