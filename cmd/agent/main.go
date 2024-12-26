@@ -14,14 +14,14 @@ import (
 )
 
 var (
-	reportInterval *time.Duration
-	pollInterval   *time.Duration
+	reportInterval *int
+	pollInterval   *int
 	serverAddress  *string
 )
 
 func init() {
-	reportInterval = flag.Duration("r", 10, "time duration for sending metrics")
-	pollInterval = flag.Duration("p", 2, "time duration for getting metrics")
+	reportInterval = flag.Int("r", 10, "time duration for sending metrics")
+	pollInterval = flag.Int("p", 2, "time duration for getting metrics")
 	serverAddress = flag.String("a", "localhost:8080", "server address")
 }
 
@@ -93,10 +93,10 @@ func main() {
 
 	flag.Parse()
 
-	go GetMetrics(&mapMetrics, &PollCount, (*pollInterval), &mutex)
+	go GetMetrics(&mapMetrics, &PollCount, time.Duration(*pollInterval), &mutex)
 
 	for {
-		time.Sleep((*reportInterval) * time.Second)
+		time.Sleep(time.Duration(*reportInterval) * time.Second)
 		mutex.RLock()
 		for metricName, metricValue := range mapMetrics {
 			metricValueStr := fmt.Sprint(metricValue)
