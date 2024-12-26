@@ -107,7 +107,7 @@ func GetMetric(Storage *MemStorage) http.HandlerFunc {
 			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
 			return
 		}
-
+		metricRes := ""
 		if metric[0] == "counter" {
 			metricValue, err := Storage.GetCounterValueByName(metric[1])
 			if err != nil {
@@ -116,14 +116,14 @@ func GetMetric(Storage *MemStorage) http.HandlerFunc {
 			}
 			builder := strings.Builder{}
 			builder.WriteString(strconv.FormatInt(metricValue, 10))
-			rw.Write([]byte(builder.String()))
+			metricRes = builder.String()
 		} else if metric[0] == "gauge" {
 			metricValue, err := Storage.GetGaugeValueByName(metric[1])
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
 				return
 			}
-			rw.Write([]byte(strconv.FormatFloat(metricValue, 'f', -1, 64)))
+			metricRes = strconv.FormatFloat(metricValue, 'f', -1, 64)
 		} else {
 			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metric[0]), http.StatusBadRequest)
 			return
@@ -131,6 +131,8 @@ func GetMetric(Storage *MemStorage) http.HandlerFunc {
 
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		rw.WriteHeader(http.StatusOK)
+		rw.Write([]byte(metricRes))
+		
 	}
 }
 
