@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -18,10 +19,6 @@ type ResultMetrics struct {
 func ProcessRequest(Storage *MemStorage) http.HandlerFunc {
 
 	return func(rw http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(rw, "Error 405: only POST-requests are allowed", http.StatusMethodNotAllowed)
-			return
-		}
 
 		metrics := strings.Split(strings.TrimPrefix(r.URL.Path, "/update/"), "/")
 
@@ -62,10 +59,6 @@ func ProcessRequest(Storage *MemStorage) http.HandlerFunc {
 
 func HTMLMetrics(Storage *MemStorage) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(rw, "Error 405: only GET-requests are allowed", http.StatusMethodNotAllowed)
-			return
-		}
 		builder := strings.Builder{}
 		for key, value := range Storage.GaugeStorage {
 			builder.WriteString(key)
@@ -96,17 +89,13 @@ func HTMLMetrics(Storage *MemStorage) http.HandlerFunc {
 
 func GetMetric(Storage *MemStorage) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(rw, "Error 405: only GET-requests are allowed", http.StatusMethodNotAllowed)
-			return
-		}
 		metric := strings.Split(strings.TrimPrefix(r.URL.Path, "/value/"), "/")
 
 		if metric[1] == "" {
 			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
 			return
 		}
-
+		metricRes := ""
 		if metric[0] == "counter" {
 			metricValue, err := Storage.GetCounterValueByName(metric[1])
 			if err != nil {
@@ -115,14 +104,14 @@ func GetMetric(Storage *MemStorage) http.HandlerFunc {
 			}
 			builder := strings.Builder{}
 			builder.WriteString(strconv.FormatInt(metricValue, 10))
-			rw.Write([]byte(builder.String()))
+			metricRes = builder.String()
 		} else if metric[0] == "gauge" {
 			metricValue, err := Storage.GetGaugeValueByName(metric[1])
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
 				return
 			}
-			rw.Write([]byte(strconv.FormatFloat(metricValue, 'f', -1, 64)))
+			metricRes = strconv.FormatFloat(metricValue, 'f', -1, 64)
 		} else {
 			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metric[0]), http.StatusBadRequest)
 			return
@@ -130,19 +119,25 @@ func GetMetric(Storage *MemStorage) http.HandlerFunc {
 
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		rw.WriteHeader(http.StatusOK)
+		rw.Write([]byte(metricRes))
+		
 	}
 }
 
 func main() {
 	var Storage = &MemStorage{CounterStorage: make(map[string]int64, 100), GaugeStorage: make(map[string]float64, 100)}
 
+	serverAddress := flag.String("a", "localhost:8080", "server address")
+	flag.Parse()
+	fmt.Printf("Server: %v\n", *serverAddress)
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", HTMLMetrics(Storage))
 		r.Get("/value/{metricType}/{metricName}", GetMetric(Storage))
 		r.Post("/update/{metricType}/{metricName}/{metricValue}", ProcessRequest(Storage))
 	})
-	err := http.ListenAndServe(":8080", r)
+
+	err := http.ListenAndServe(*serverAddress, r)
 	if err != nil {
 		panic(err)
 	}
