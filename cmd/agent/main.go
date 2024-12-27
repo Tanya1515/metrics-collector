@@ -9,20 +9,22 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"os"
+	"strconv"
 
 	"github.com/go-resty/resty/v2"
 )
 
 var (
-	reportInterval *int
-	pollInterval   *int
-	serverAddress  *string
+	reportIntervalFlag *int
+	pollIntervalFlag   *int
+	serverAddressFlag  *string
 )
 
 func init() {
-	reportInterval = flag.Int("r", 10, "time duration for sending metrics")
-	pollInterval = flag.Int("p", 2, "time duration for getting metrics")
-	serverAddress = flag.String("a", "localhost:8080", "server address")
+	reportIntervalFlag = flag.Int("r", 10, "time duration for sending metrics")
+	pollIntervalFlag = flag.Int("p", 2, "time duration for getting metrics")
+	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
 }
 
 func CheckValue(fieldName string) bool {
@@ -93,14 +95,37 @@ func main() {
 
 	flag.Parse()
 
-	go GetMetrics(&mapMetrics, &PollCount, time.Duration(*pollInterval), &mutex)
+	serverAddress, addressExists := os.LookupEnv("ADDRESS")
+	if !(addressExists) {
+		serverAddress = *serverAddressFlag
+	}
+
+	reportInterval, reportIntExists := os.LookupEnv("REPORT_INTERVAL")
+	reportInt, err := strconv.Atoi(reportInterval)
+	if err != nil{
+		fmt.Printf("Error while transforming to int: %s", err)
+	}
+	if !(reportIntExists){
+		reportInt = *reportIntervalFlag
+	}
+
+	pollInterval, pollIntervalExist := os.LookupEnv("POLL_INTERVAL")
+	pollInt, err := strconv.Atoi(pollInterval)
+	if err != nil{
+		fmt.Printf("Error while transforming to int: %s", err)
+	}
+	if !(pollIntervalExist){
+		pollInt = *pollIntervalFlag
+	}
+
+	go GetMetrics(&mapMetrics, &PollCount, time.Duration(pollInt), &mutex)
 
 	for {
-		time.Sleep(time.Duration(*reportInterval) * time.Second)
+		time.Sleep(time.Duration(reportInt) * time.Second)
 		mutex.RLock()
 		for metricName, metricValue := range mapMetrics {
 			metricValueStr := fmt.Sprint(metricValue)
-			requestString := MakeString(*serverAddress, metricName, metricValueStr, "gauge")
+			requestString := MakeString(serverAddress, metricName, metricValueStr, "gauge")
 			_, err := client.R().
 				SetHeader("Content-Type", "text/plain").
 				Post(requestString)
@@ -108,7 +133,7 @@ func main() {
 				fmt.Printf("Error while sending metric %s: %s", metricName, err)
 			}
 
-			requestString = MakeString(*serverAddress, metricName, fmt.Sprint(PollCount), "counter")
+			requestString = MakeString(serverAddress, metricName, fmt.Sprint(PollCount), "counter")
 			_, err = client.R().
 				SetHeader("Content-Type", "text/plain").
 				Post(requestString)
@@ -116,6 +141,6 @@ func main() {
 				fmt.Printf("Error while sending PollCounter for metric %s: %s", metricName, err)
 			}
 		}
-		mutex.RUnlock()
 	}
 }
+
