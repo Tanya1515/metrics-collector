@@ -17,7 +17,11 @@ type ResultMetrics struct {
 	CounterMetrics string
 }
 
-func ProcessRequest(Storage *MemStorage) http.HandlerFunc {
+type Application struct{
+	Storage *MemStorage
+}
+
+func (App *Application) ProcessRequest() http.HandlerFunc {
 
 	return func(rw http.ResponseWriter, r *http.Request) {
 
@@ -39,7 +43,7 @@ func ProcessRequest(Storage *MemStorage) http.HandlerFunc {
 				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metrics[2]), http.StatusBadRequest)
 				return
 			}
-			Storage.RepositoryAddCounterValue(metrics[1], metricValueInt64)
+			App.Storage.RepositoryAddCounterValue(metrics[1], metricValueInt64)
 		}
 		if metrics[0] == "gauge" {
 			metricValueFloat64, err := strconv.ParseFloat(metrics[2], 64)
@@ -47,7 +51,7 @@ func ProcessRequest(Storage *MemStorage) http.HandlerFunc {
 				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metrics[2]), http.StatusBadRequest)
 				return
 			}
-			Storage.RepositoryAddGaugeValue(metrics[1], metricValueFloat64)
+			App.Storage.RepositoryAddGaugeValue(metrics[1], metricValueFloat64)
 		}
 
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -58,10 +62,10 @@ func ProcessRequest(Storage *MemStorage) http.HandlerFunc {
 	}
 }
 
-func HTMLMetrics(Storage *MemStorage) http.HandlerFunc {
+func (App *Application) HTMLMetrics() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		builder := strings.Builder{}
-		for key, value := range Storage.GaugeStorage {
+		for key, value := range App.Storage.GaugeStorage {
 			builder.WriteString(key)
 			builder.WriteString(": ")
 			builder.WriteString(strconv.FormatFloat(value, 'f', -1, 64))
@@ -70,7 +74,7 @@ func HTMLMetrics(Storage *MemStorage) http.HandlerFunc {
 		gaugeResult := builder.String()
 
 		builder = strings.Builder{}
-		for key, value := range Storage.CounterStorage {
+		for key, value := range App.Storage.CounterStorage {
 			builder.WriteString(key)
 			builder.WriteString(": ")
 			builder.WriteString(strconv.FormatInt(value, 10))
@@ -88,7 +92,7 @@ func HTMLMetrics(Storage *MemStorage) http.HandlerFunc {
 	}
 }
 
-func GetMetric(Storage *MemStorage) http.HandlerFunc {
+func (App *Application) GetMetric() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		metric := strings.Split(strings.TrimPrefix(r.URL.Path, "/value/"), "/")
 
@@ -98,7 +102,7 @@ func GetMetric(Storage *MemStorage) http.HandlerFunc {
 		}
 		metricRes := ""
 		if metric[0] == "counter" {
-			metricValue, err := Storage.GetCounterValueByName(metric[1])
+			metricValue, err := App.Storage.GetCounterValueByName(metric[1])
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
 				return
@@ -107,7 +111,7 @@ func GetMetric(Storage *MemStorage) http.HandlerFunc {
 			builder.WriteString(strconv.FormatInt(metricValue, 10))
 			metricRes = builder.String()
 		} else if metric[0] == "gauge" {
-			metricValue, err := Storage.GetGaugeValueByName(metric[1])
+			metricValue, err := App.Storage.GetGaugeValueByName(metric[1])
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
 				return
@@ -127,16 +131,16 @@ func GetMetric(Storage *MemStorage) http.HandlerFunc {
 
 func main() {
 	var Storage = &MemStorage{CounterStorage: make(map[string]int64, 100), GaugeStorage: make(map[string]float64, 100)}
-
+	App := Application{Storage: Storage}
 	serverAddressFlag := flag.String("a", "localhost:8080", "server address")
 
 	flag.Parse()
 
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
-		r.Get("/", HTMLMetrics(Storage))
-		r.Get("/value/{metricType}/{metricName}", GetMetric(Storage))
-		r.Post("/update/{metricType}/{metricName}/{metricValue}", ProcessRequest(Storage))
+		r.Get("/", App.HTMLMetrics())
+		r.Get("/value/{metricType}/{metricName}", App.GetMetric())
+		r.Post("/update/{metricType}/{metricName}/{metricValue}", App.ProcessRequest())
 	})
 
 	serverAddress, envExists := os.LookupEnv("ADDRESS")
