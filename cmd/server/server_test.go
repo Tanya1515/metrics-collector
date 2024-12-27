@@ -85,10 +85,11 @@ func TestProcessRequest(t *testing.T) {
 	for _, test := range tests {
 		t.Run("Test:", func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, test.metricInfo, nil)
+			App := Application{Storage: test.storage}
 
 			w := httptest.NewRecorder()
 
-			h := http.HandlerFunc(ProcessRequest(test.storage))
+			h := http.HandlerFunc(App.ProcessRequest())
 			h(w, request)
 
 			res := w.Result()
@@ -190,9 +191,11 @@ func TestGetMetric(t *testing.T){
 		t.Run("Test:", func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, test.metricInfo, nil)
 
+			App := Application{Storage: test.storage}
+
 			w := httptest.NewRecorder()
 
-			h := http.HandlerFunc(GetMetric(test.storage))
+			h := http.HandlerFunc(App.GetMetric())
 			h(w, request)
 
 			res := w.Result()
