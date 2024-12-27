@@ -19,30 +19,25 @@ type ResultMetrics struct {
 	CounterMetrics string
 }
 
-type Application struct{
+type Application struct {
 	Storage *MemStorage
-	logger zap.SugaredLogger
+	logger  zap.SugaredLogger
 }
 
 func (App *Application) UpdateValue() http.Handler {
 	updateValuefunc := func(rw http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(rw, "Error 405: only POST-requests are allowed", http.StatusMethodNotAllowed)
-			sugar.Errorln("Expected Post method, but recieved:", r.Method)
-			return
-		}
 
 		metrics := strings.Split(strings.TrimPrefix(r.URL.Path, "/update/"), "/")
 
 		if (metrics[0] != "counter") && (metrics[0] != "gauge") {
 			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metrics[0]), http.StatusBadRequest)
-			sugar.Errorln("Expected Post method, but recieved:", r.Method)
+			App.logger.Errorln("Expected Post method, but recieved:", r.Method)
 			return
 		}
 
 		if metrics[1] == "" {
 			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
-			sugar.Errorln("Metric name was not found")
+			App.logger.Errorln("Metric name was not found")
 			return
 		}
 
@@ -50,7 +45,7 @@ func (App *Application) UpdateValue() http.Handler {
 			metricValueInt64, err := strconv.ParseInt(metrics[2], 10, 64)
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metrics[2]), http.StatusBadRequest)
-				sugar.Errorln("Invalid metric value:", err)
+				App.logger.Errorln("Invalid metric value:", err)
 				return
 			}
 			App.Storage.RepositoryAddCounterValue(metrics[1], metricValueInt64)
@@ -59,7 +54,7 @@ func (App *Application) UpdateValue() http.Handler {
 			metricValueFloat64, err := strconv.ParseFloat(metrics[2], 64)
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metrics[2]), http.StatusBadRequest)
-				sugar.Errorln("Invalid metric value:", err)
+				App.logger.Errorln("Invalid metric value:", err)
 				return
 			}
 			App.Storage.RepositoryAddGaugeValue(metrics[1], metricValueFloat64)
@@ -76,11 +71,7 @@ func (App *Application) UpdateValue() http.Handler {
 
 func (App *Application) HTMLMetrics() http.Handler {
 	htmlMetricsfunc := func(rw http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(rw, "Error 405: only GET-requests are allowed", http.StatusMethodNotAllowed)
-			sugar.Errorln("Expected Get method, but recieved:", r.Method)
-			return
-		}
+
 		builder := strings.Builder{}
 		for key, value := range App.Storage.GaugeStorage {
 			builder.WriteString(key)
@@ -104,7 +95,7 @@ func (App *Application) HTMLMetrics() http.Handler {
 		t, err := template.ParseFiles("./html/metrics.html")
 		if err != nil {
 			http.Error(rw, "Error 500: error while processing html page", http.StatusInternalServerError)
-			sugar.Errorln("Error while processing html page:", err)
+			App.logger.Errorln("Error while processing html page:", err)
 		}
 		t.Execute(rw, res)
 	}
@@ -114,16 +105,11 @@ func (App *Application) HTMLMetrics() http.Handler {
 
 func (App *Application) GetMetric() http.Handler {
 	getMetricfunc := func(rw http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(rw, "Error 405: only GET-requests are allowed", http.StatusMethodNotAllowed)
-			sugar.Errorln("Expected Get method, but recieved:", r.Method)
-			return
-		}
 		metric := strings.Split(strings.TrimPrefix(r.URL.Path, "/value/"), "/")
 
 		if metric[1] == "" {
 			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
-			sugar.Errorln("Metric name was not found")
+			App.logger.Errorln("Metric name was not found")
 			return
 		}
 		metricRes := ""
@@ -131,7 +117,7 @@ func (App *Application) GetMetric() http.Handler {
 			metricValue, err := App.Storage.GetCounterValueByName(metric[1])
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
-				sugar.Errorln("Error in CounterStorage:", err)
+				App.logger.Errorln("Error in CounterStorage:", err)
 				return
 			}
 			builder := strings.Builder{}
@@ -141,26 +127,26 @@ func (App *Application) GetMetric() http.Handler {
 			metricValue, err := App.Storage.GetGaugeValueByName(metric[1])
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
-				sugar.Errorln("Error in GaugeStorage:", err)
+				App.logger.Errorln("Error in GaugeStorage:", err)
 				return
 			}
 			metricRes = strconv.FormatFloat(metricValue, 'f', -1, 64)
 		} else {
 			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metric[0]), http.StatusBadRequest)
-			sugar.Errorln("Invalid metric type:", metric[0])
+			App.logger.Errorln("Invalid metric type:", metric[0])
 			return
 		}
 
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte(metricRes))
-		
+
 	}
 
 	return http.HandlerFunc(getMetricfunc)
 }
 
-func (App * Application) WithLogger(h http.Handler) http.HandlerFunc {
+func (App *Application) WithLogger(h http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		uri := r.RequestURI
@@ -193,7 +179,7 @@ func (App * Application) WithLogger(h http.Handler) http.HandlerFunc {
 
 func main() {
 	var Storage = &MemStorage{CounterStorage: make(map[string]int64, 100), GaugeStorage: make(map[string]float64, 100)}
-	
+
 	serverAddressFlag := flag.String("a", "localhost:8080", "server address")
 
 	flag.Parse()
