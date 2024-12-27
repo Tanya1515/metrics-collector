@@ -128,9 +128,10 @@ func GetMetric(Storage *MemStorage) http.HandlerFunc {
 func main() {
 	var Storage = &MemStorage{CounterStorage: make(map[string]int64, 100), GaugeStorage: make(map[string]float64, 100)}
 
-	serverAddress := flag.String("a", "localhost:8080", "server address")
+	serverAddressFlag := flag.String("a", "localhost:8080", "server address")
+
 	flag.Parse()
-	fmt.Printf("Server: %v\n", *serverAddress)
+
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", HTMLMetrics(Storage))
@@ -140,9 +141,8 @@ func main() {
 
 	serverAddress, envExists := os.LookupEnv("ADDRESS")
 	if !(envExists) {
-		serverAddress = "localhost:8080"
+		serverAddress = *serverAddressFlag
 	}
-	fmt.Println(serverAddress)
 	err := http.ListenAndServe(serverAddress, r)
 	if err != nil {
 		panic(err)
