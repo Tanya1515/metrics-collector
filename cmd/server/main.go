@@ -25,33 +25,35 @@ func (App *Application) ProcessRequest() http.HandlerFunc {
 
 	return func(rw http.ResponseWriter, r *http.Request) {
 
-		metrics := strings.Split(strings.TrimPrefix(r.URL.Path, "/update/"), "/")
+		metricType := chi.URLParam(r, "metricType")
+		metricName := chi.URLParam(r, "metricName")
+		metricValue := chi.URLParam(r, "metricValue")
 
-		if (metrics[0] != "counter") && (metrics[0] != "gauge") {
-			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metrics[0]), http.StatusBadRequest)
+		if (metricType != "counter") && (metricType != "gauge") {
+			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metricType), http.StatusBadRequest)
 			return
 		}
 
-		if metrics[1] == "" {
+		if metricName == "" {
 			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
 			return
 		}
 
-		if metrics[0] == "counter" {
-			metricValueInt64, err := strconv.ParseInt(metrics[2], 10, 64)
+		if metricType == "counter" {
+			metricValueInt64, err := strconv.ParseInt(metricValue, 10, 64)
 			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metrics[2]), http.StatusBadRequest)
+				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metricValue), http.StatusBadRequest)
 				return
 			}
-			App.Storage.RepositoryAddCounterValue(metrics[1], metricValueInt64)
+			App.Storage.RepositoryAddCounterValue(metricName, metricValueInt64)
 		}
-		if metrics[0] == "gauge" {
-			metricValueFloat64, err := strconv.ParseFloat(metrics[2], 64)
+		if metricType == "gauge" {
+			metricValueFloat64, err := strconv.ParseFloat(metricValue, 64)
 			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metrics[2]), http.StatusBadRequest)
+				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metricValue), http.StatusBadRequest)
 				return
 			}
-			App.Storage.RepositoryAddGaugeValue(metrics[1], metricValueFloat64)
+			App.Storage.RepositoryAddGaugeValue(metricName, metricValueFloat64)
 		}
 
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -94,15 +96,17 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 
 func (App *Application) GetMetric() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		metric := strings.Split(strings.TrimPrefix(r.URL.Path, "/value/"), "/")
 
-		if metric[1] == "" {
+		metricType := chi.URLParam(r, "metricType")
+		metricName := chi.URLParam(r, "metricName")
+
+		if metricName == "" {
 			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
 			return
 		}
 		metricRes := ""
-		if metric[0] == "counter" {
-			metricValue, err := App.Storage.GetCounterValueByName(metric[1])
+		if metricType == "counter" {
+			metricValue, err := App.Storage.GetCounterValueByName(metricName)
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
 				return
@@ -110,15 +114,15 @@ func (App *Application) GetMetric() http.HandlerFunc {
 			builder := strings.Builder{}
 			builder.WriteString(strconv.FormatInt(metricValue, 10))
 			metricRes = builder.String()
-		} else if metric[0] == "gauge" {
-			metricValue, err := App.Storage.GetGaugeValueByName(metric[1])
+		} else if metricType == "gauge" {
+			metricValue, err := App.Storage.GetGaugeValueByName(metricName)
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
 				return
 			}
 			metricRes = strconv.FormatFloat(metricValue, 'f', -1, 64)
 		} else {
-			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metric[0]), http.StatusBadRequest)
+			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metricType), http.StatusBadRequest)
 			return
 		}
 
