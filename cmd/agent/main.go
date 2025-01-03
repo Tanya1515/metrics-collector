@@ -21,6 +21,13 @@ var (
 	serverAddressFlag  *string
 )
 
+type Metrics struct {
+	ID    string   `json:"id"`
+	MType string   `json:"type"`
+	Delta *int64   `json:"delta,omitempty"`
+	Value *float64 `json:"value,omitempty"`
+}
+
 func init() {
 	reportIntervalFlag = flag.Int("r", 10, "time duration for sending metrics")
 	pollIntervalFlag = flag.Int("p", 2, "time duration for getting metrics")
@@ -59,34 +66,19 @@ func GetMetrics(mapMetrics *map[string]interface{}, PollCount *int, timer time.D
 	}
 }
 
-func MakeString(serverAddress, metricName, metricValue, metricType string) string {
+func MakeString(serverAddress string) string {
 	builder := strings.Builder{}
-
-	if metricType == "gauge" {
-		builder.WriteString("http://")
-		builder.WriteString(serverAddress)
-		builder.WriteString("/update/gauge/")
-		builder.WriteString(metricName)
-		builder.WriteString("/")
-		builder.WriteString(metricValue)
-	}
-
-	if metricType == "counter" {
-		builder.WriteString("http://")
-		builder.WriteString(serverAddress)
-		builder.WriteString("/update/counter/")
-		builder.WriteString(metricName)
-		builder.WriteString("/")
-		builder.WriteString(metricValue)
-	}
+	builder.WriteString("http://")
+	builder.WriteString(serverAddress)
+	builder.WriteString("/update")
 
 	return builder.String()
 }
 
 func main() {
-
-	fmt.Println("Start agent")
 	var err error
+	fmt.Println("Start agent")
+	
 	mapMetrics := make(map[string]interface{}, 20)
 	PollCount := 0
 
@@ -119,35 +111,46 @@ func main() {
 		}
 	}
 
+	metricData := Metrics{}
+	requestString := MakeString(serverAddress)
+	metricValueStr := ""
+	var metricValueF64 float64
+	var metricValueI64 int64
 	go GetMetrics(&mapMetrics, &PollCount, time.Duration(pollInt), &mutex)
 
 	for {
 		time.Sleep(time.Duration(reportInt) * time.Second)
 		mutex.RLock()
 		for metricName, metricValue := range mapMetrics {
-			metricValueStr := fmt.Sprint(metricValue)
-			requestString := MakeString(serverAddress, metricName, metricValueStr, "gauge")
-			fmt.Printf("Send request %s to address %s for gauge metric with name %s with value %v \n", requestString, serverAddress, metricName, metricValueStr)
-			_, err := client.R().
-				SetHeader("Content-Type", "text/plain").
+			fmt.Println(metricName)
+			metricData.ID = metricName
+			metricValueStr = fmt.Sprint(metricValue)
+			metricData.MType = "gauge"
+			metricValueF64, err = strconv.ParseFloat(metricValueStr, 64)
+			if err != nil {
+				fmt.Printf("Error while parsing metric %s: %s", metricName, err)
+			}
+			metricData.Value = &metricValueF64
+			fmt.Println(*metricData.Value)
+			_, err = client.R().
+				SetHeader("Content-Type", "application/json").
+				SetBody(metricData).
 				Post(requestString)
 			if err != nil {
 				fmt.Printf("Error while sending metric %s: %s\n", metricName, err)
 			}
-
 		}
-		requestString := MakeString(serverAddress, "PollCount", fmt.Sprint(PollCount), "counter")
-		fmt.Printf("Send request %s to address %s for counter metric with name %s with value %v \n", requestString, serverAddress, "PollCount", fmt.Sprint(PollCount))
+		metricData.ID = "PollCount"
+		metricData.MType = "counter"
+		metricValueI64 = int64(PollCount)
+		metricData.Delta = &metricValueI64
 		_, err = client.R().
-			SetHeader("Content-Type", "text/plain").
+			SetHeader("Content-Type", "application/json").
+			SetBody(metricData).
 			Post(requestString)
 		if err != nil {
-			fmt.Printf("Error while sending PollCounter for metric %s: %s\n", "PollCount", err)
+			fmt.Printf("Error while sending PollCounter for metric PollCount: %s", err)
 		}
-		if err == nil {
-			PollCount = 0
-		}
-
 		mutex.RUnlock()
 	}
 }
