@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"html/template"
@@ -24,46 +26,58 @@ type Application struct {
 	logger  zap.SugaredLogger
 }
 
+type Metrics struct {
+	ID    string   `json:"id"`
+	MType string   `json:"type"`
+	Delta *int64   `json:"delta,omitempty"`
+	Value *float64 `json:"value,omitempty"`
+}
+
 func (App *Application) UpdateValue() http.Handler {
 	updateValuefunc := func(rw http.ResponseWriter, r *http.Request) {
+		var metricData Metrics
+		var buf bytes.Buffer
 
-		metrics := strings.Split(strings.TrimPrefix(r.URL.Path, "/update/"), "/")
+		_, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			App.logger.Errorln("Bad request catched")
+			return
+		}
+		if err = json.Unmarshal(buf.Bytes(), &metricData); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			App.logger.Errorln("Error during deserialization")
+			return
+		}
 
-		if (metrics[0] != "counter") && (metrics[0] != "gauge") {
-			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metrics[0]), http.StatusBadRequest)
+		if (metricData.MType != "counter") && (metricData.MType != "gauge") {
+			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metricData.MType), http.StatusBadRequest)
 			App.logger.Errorln("Expected Post method, but recieved:", r.Method)
 			return
 		}
 
-		if metrics[1] == "" {
+		if metricData.ID == "" {
 			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
 			App.logger.Errorln("Metric name was not found")
 			return
 		}
 
-		if metrics[0] == "counter" {
-			metricValueInt64, err := strconv.ParseInt(metrics[2], 10, 64)
-			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metrics[2]), http.StatusBadRequest)
-				App.logger.Errorln("Invalid metric value:", err)
-				return
-			}
-			App.Storage.RepositoryAddCounterValue(metrics[1], metricValueInt64)
+		if metricData.MType == "counter" {
+			App.Storage.RepositoryAddCounterValue(metricData.ID, *metricData.Delta)
 		}
-		if metrics[0] == "gauge" {
-			metricValueFloat64, err := strconv.ParseFloat(metrics[2], 64)
-			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metrics[2]), http.StatusBadRequest)
-				App.logger.Errorln("Invalid metric value:", err)
-				return
-			}
-			App.Storage.RepositoryAddGaugeValue(metrics[1], metricValueFloat64)
+		if metricData.MType == "gauge" {
+			App.Storage.RepositoryAddGaugeValue(metricData.ID, *metricData.Value)
 		}
 
-		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		rw.Header().Set("Content-Type", "application/json")
 		rw.WriteHeader(http.StatusOK)
 
-		rw.Write([]byte("Succesfully edit!"))
+		metricDataBytes, err := json.Marshal(metricData)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			App.logger.Errorln("Error during serialization")
+		}
+		rw.Write(metricDataBytes)
 
 	}
 	return http.HandlerFunc(updateValuefunc)
@@ -105,41 +119,54 @@ func (App *Application) HTMLMetrics() http.Handler {
 
 func (App *Application) GetMetric() http.Handler {
 	getMetricfunc := func(rw http.ResponseWriter, r *http.Request) {
-		metric := strings.Split(strings.TrimPrefix(r.URL.Path, "/value/"), "/")
-
-		if metric[1] == "" {
+		metricData := Metrics{}
+		var buf bytes.Buffer
+		_, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			App.logger.Errorln("Bad request catched")
+			return
+		}
+		if err = json.Unmarshal(buf.Bytes(), &metricData); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			App.logger.Errorln("Error during deserialization")
+			return
+		}
+		if metricData.ID == "" {
 			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
 			App.logger.Errorln("Metric name was not found")
 			return
 		}
-		metricRes := ""
-		if metric[0] == "counter" {
-			metricValue, err := App.Storage.GetCounterValueByName(metric[1])
+		if metricData.MType == "counter" {
+			metricValue, err := App.Storage.GetCounterValueByName(metricData.ID)
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
 				App.logger.Errorln("Error in CounterStorage:", err)
 				return
 			}
-			builder := strings.Builder{}
-			builder.WriteString(strconv.FormatInt(metricValue, 10))
-			metricRes = builder.String()
-		} else if metric[0] == "gauge" {
-			metricValue, err := App.Storage.GetGaugeValueByName(metric[1])
+			metricData.Delta = &metricValue
+		} else if metricData.MType == "gauge" {
+			metricValue, err := App.Storage.GetGaugeValueByName(metricData.ID)
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
 				App.logger.Errorln("Error in GaugeStorage:", err)
 				return
 			}
-			metricRes = strconv.FormatFloat(metricValue, 'f', -1, 64)
+			metricData.Value = &metricValue
 		} else {
-			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metric[0]), http.StatusBadRequest)
-			App.logger.Errorln("Invalid metric type:", metric[0])
+			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metricData.MType), http.StatusBadRequest)
+			App.logger.Errorln("Invalid metric type:", metricData.MType)
 			return
 		}
 
-		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		metricDataBytes, err := json.Marshal(metricData)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			App.logger.Errorln("Error during serialization")
+		}
+		rw.Header().Set("Content-Type", "application/json")
 		rw.WriteHeader(http.StatusOK)
-		rw.Write([]byte(metricRes))
+		rw.Write(metricDataBytes)
 
 	}
 
@@ -203,8 +230,8 @@ func main() {
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", App.WithLogger(App.HTMLMetrics()))
-		r.Get("/value/{metricType}/{metricName}", App.WithLogger(App.GetMetric()))
-		r.Post("/update/{metricType}/{metricName}/{metricValue}", App.WithLogger(App.UpdateValue()))
+		r.Get("/value", App.WithLogger(App.GetMetric()))
+		r.Post("/update", App.WithLogger(App.UpdateValue()))
 	})
 
 	serverAddress, envExists := os.LookupEnv("ADDRESS")

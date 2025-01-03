@@ -4,13 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
+	"os"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"os"
-	"strconv"
 
 	"github.com/go-resty/resty/v2"
 )
@@ -20,6 +20,13 @@ var (
 	pollIntervalFlag   *int
 	serverAddressFlag  *string
 )
+
+type Metrics struct {
+	ID    string   `json:"id"`
+	MType string   `json:"type"`
+	Delta *int64   `json:"delta,omitempty"`
+	Value *float64 `json:"value,omitempty"`
+}
 
 func init() {
 	reportIntervalFlag = flag.Int("r", 10, "time duration for sending metrics")
@@ -59,32 +66,17 @@ func GetMetrics(mapMetrics *map[string]interface{}, PollCount *int, timer time.D
 	}
 }
 
-func MakeString(serverAddress, metricName, metricValue, metricType string) string {
+func MakeString(serverAddress string) string {
 	builder := strings.Builder{}
-
-	if metricType == "gauge" {
-		builder.WriteString("http://")
-		builder.WriteString(serverAddress)
-		builder.WriteString("/update/gauge/")
-		builder.WriteString(metricName)
-		builder.WriteString("/")
-		builder.WriteString(metricValue)
-	}
-
-	if metricType == "counter" {
-		builder.WriteString("http://")
-		builder.WriteString(serverAddress)
-		builder.WriteString("/update/counter/PollCount")
-		builder.WriteString(metricName)
-		builder.WriteString("/")
-		builder.WriteString(metricValue)
-	}
+	builder.WriteString("http://")
+	builder.WriteString(serverAddress)
+	builder.WriteString("/update")
 
 	return builder.String()
 }
 
 func main() {
-
+	var err error
 	fmt.Println("Start agent")
 	mapMetrics := make(map[string]interface{}, 20)
 	PollCount := 0
@@ -100,47 +92,69 @@ func main() {
 		serverAddress = *serverAddressFlag
 	}
 
+	reportInt := *reportIntervalFlag
 	reportInterval, reportIntExists := os.LookupEnv("REPORT_INTERVAL")
-	reportInt, err := strconv.Atoi(reportInterval)
-	if err != nil{
-		fmt.Printf("Error while transforming to int: %s", err)
-	}
-	if !(reportIntExists){
-		reportInt = *reportIntervalFlag
+	if reportIntExists {
+		reportInt, err = strconv.Atoi(reportInterval)
+		if err != nil {
+			fmt.Printf("Error while transforming to int: %s", err)
+		}
+	} else {
 	}
 
+	pollInt := *pollIntervalFlag
 	pollInterval, pollIntervalExist := os.LookupEnv("POLL_INTERVAL")
-	pollInt, err := strconv.Atoi(pollInterval)
-	if err != nil{
-		fmt.Printf("Error while transforming to int: %s", err)
-	}
-	if !(pollIntervalExist){
-		pollInt = *pollIntervalFlag
+	if pollIntervalExist {
+		pollInt, err = strconv.Atoi(pollInterval)
+		if err != nil {
+			fmt.Printf("Error while transforming to int: %s", err)
+		}
 	}
 
+	metricData := Metrics{}
+	requestString := MakeString(serverAddress)
+	metricValueStr := ""
+	var metricValueF64 float64
+	var metricValueI64 int64
 	go GetMetrics(&mapMetrics, &PollCount, time.Duration(pollInt), &mutex)
 
 	for {
 		time.Sleep(time.Duration(reportInt) * time.Second)
 		mutex.RLock()
 		for metricName, metricValue := range mapMetrics {
-			metricValueStr := fmt.Sprint(metricValue)
-			requestString := MakeString(serverAddress, metricName, metricValueStr, "gauge")
-			_, err := client.R().
-				SetHeader("Content-Type", "text/plain").
+			fmt.Println(metricName)
+			metricData.ID = metricName
+			metricValueStr = fmt.Sprint(metricValue)
+			metricData.MType = "gauge"
+			metricValueF64, err = strconv.ParseFloat(metricValueStr, 64)
+			if err != nil {
+				fmt.Printf("Error while parsing metric %s: %s", metricName, err)
+			}
+			metricData.Value = &metricValueF64
+			fmt.Println(*metricData.Value)
+			_, err = client.R().
+				SetHeader("Content-Type", "application/json").
+				SetBody(metricData).
 				Post(requestString)
 			if err != nil {
 				fmt.Printf("Error while sending metric %s: %s", metricName, err)
 			}
-
-			requestString = MakeString(serverAddress, metricName, fmt.Sprint(PollCount), "counter")
+			builder := strings.Builder{}
+			builder.WriteString("PollCount")
+			builder.WriteString(metricName)
+			metricData.ID = builder.String()
+			fmt.Println(builder.String())
+			metricData.MType = "counter"
+			metricValueI64 = int64(PollCount)
+			metricData.Delta = &metricValueI64
 			_, err = client.R().
-				SetHeader("Content-Type", "text/plain").
+				SetHeader("Content-Type", "application/json").
+				SetBody(metricData).
 				Post(requestString)
 			if err != nil {
 				fmt.Printf("Error while sending PollCounter for metric %s: %s", metricName, err)
 			}
 		}
+		mutex.RUnlock()
 	}
 }
-
