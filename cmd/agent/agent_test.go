@@ -94,7 +94,7 @@ func TestMakeString(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := MakeString(test.serverAddress, test.metricName, test.metricValue, test.metricType)
+			result := MakeString(test.serverAddress)
 			assert.Equal(t, test.result, result)
 		})
 	}
