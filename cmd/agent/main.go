@@ -45,7 +45,7 @@ func CheckValue(fieldName string) bool {
 	return false
 }
 
-func GetMetrics(mapMetrics *map[string]interface{}, PollCount *int, timer time.Duration, mutex *sync.RWMutex) {
+func GetMetrics(mapMetrics *map[string]interface{}, PollCount *int64, timer time.Duration, mutex *sync.RWMutex) {
 	var memStats runtime.MemStats
 	for {
 		runtime.ReadMemStats(&memStats)
@@ -77,14 +77,12 @@ func MakeString(serverAddress string) string {
 
 func main() {
 	var err error
-	fmt.Println("Start agent")
-	
+	fmt.Println("Start agent for collecting metrics")
 	mapMetrics := make(map[string]interface{}, 20)
-	PollCount := 0
+	var PollCount int64
+	var mutex sync.RWMutex
 
 	client := resty.New()
-
-	var mutex sync.RWMutex
 
 	flag.Parse()
 
@@ -113,9 +111,7 @@ func main() {
 
 	metricData := Metrics{}
 	requestString := MakeString(serverAddress)
-	metricValueStr := ""
 	var metricValueF64 float64
-	var metricValueI64 int64
 	go GetMetrics(&mapMetrics, &PollCount, time.Duration(pollInt), &mutex)
 
 	for {
@@ -124,14 +120,13 @@ func main() {
 		for metricName, metricValue := range mapMetrics {
 			fmt.Println(metricName)
 			metricData.ID = metricName
-			metricValueStr = fmt.Sprint(metricValue)
 			metricData.MType = "gauge"
-			metricValueF64, err = strconv.ParseFloat(metricValueStr, 64)
+			metricValueF64, err = strconv.ParseFloat(fmt.Sprint(metricValue), 64)
 			if err != nil {
 				fmt.Printf("Error while parsing metric %s: %s", metricName, err)
 			}
+			fmt.Println(reflect.ValueOf(metricValue).Type())
 			metricData.Value = &metricValueF64
-			fmt.Println(*metricData.Value)
 			_, err = client.R().
 				SetHeader("Content-Type", "application/json").
 				SetBody(metricData).
@@ -142,7 +137,7 @@ func main() {
 		}
 		metricData.ID = "PollCount"
 		metricData.MType = "counter"
-		metricValueI64 = int64(PollCount)
+		metricValueI64 := int64(PollCount)
 		metricData.Delta = &metricValueI64
 		_, err = client.R().
 			SetHeader("Content-Type", "application/json").
