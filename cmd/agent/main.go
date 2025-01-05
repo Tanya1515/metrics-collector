@@ -4,13 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
+	"os"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"os"
-	"strconv"
 
 	"github.com/go-resty/resty/v2"
 )
@@ -102,19 +102,19 @@ func main() {
 
 	reportInterval, reportIntExists := os.LookupEnv("REPORT_INTERVAL")
 	reportInt, err := strconv.Atoi(reportInterval)
-	if err != nil{
+	if err != nil {
 		fmt.Printf("Error while transforming to int: %s", err)
 	}
-	if !(reportIntExists){
+	if !(reportIntExists) {
 		reportInt = *reportIntervalFlag
 	}
 
 	pollInterval, pollIntervalExist := os.LookupEnv("POLL_INTERVAL")
 	pollInt, err := strconv.Atoi(pollInterval)
-	if err != nil{
+	if err != nil {
 		fmt.Printf("Error while transforming to int: %s", err)
 	}
-	if !(pollIntervalExist){
+	if !(pollIntervalExist) {
 		pollInt = *pollIntervalFlag
 	}
 
@@ -141,6 +141,6 @@ func main() {
 				fmt.Printf("Error while sending PollCounter for metric %s: %s", metricName, err)
 			}
 		}
+		mutex.RUnlock()
 	}
 }
-
