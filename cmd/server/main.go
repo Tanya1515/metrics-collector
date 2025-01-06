@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"compress/gzip"
+
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 )
@@ -34,18 +36,35 @@ type Metrics struct {
 	Value *float64 `json:"value,omitempty"`
 }
 
-func (App *Application) UpdateValue() http.Handler {
+func (App *Application) UpdateValue() http.HandlerFunc {
 	updateValuefunc := func(rw http.ResponseWriter, r *http.Request) {
 		var metricData Metrics
 		var buf bytes.Buffer
 
-		_, err := buf.ReadFrom(r.Body)
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusBadRequest)
-			App.logger.Errorln("Bad request catched")
-			return
+		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+			gz, err := gzip.NewReader(r.Body)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				App.logger.Errorln("Error during unpacking the request")
+				return
+			}
+			defer gz.Close()
+
+			_, err = buf.ReadFrom(gz)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+		} else {
+			_, err := buf.ReadFrom(r.Body)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusBadRequest)
+				App.logger.Errorln("Bad request catched")
+				return
+			}
 		}
-		if err = json.Unmarshal(buf.Bytes(), &metricData); err != nil {
+		if err := json.Unmarshal(buf.Bytes(), &metricData); err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			App.logger.Errorln("Error during deserialization")
 			return
@@ -84,7 +103,7 @@ func (App *Application) UpdateValue() http.Handler {
 	return http.HandlerFunc(updateValuefunc)
 }
 
-func (App *Application) HTMLMetrics() http.Handler {
+func (App *Application) HTMLMetrics() http.HandlerFunc {
 	htmlMetricsfunc := func(rw http.ResponseWriter, r *http.Request) {
 
 		builder := strings.Builder{}
@@ -117,7 +136,7 @@ func (App *Application) HTMLMetrics() http.Handler {
 	return http.HandlerFunc(htmlMetricsfunc)
 }
 
-func (App *Application) GetMetric() http.Handler {
+func (App *Application) GetMetric() http.HandlerFunc {
 	getMetricfunc := func(rw http.ResponseWriter, r *http.Request) {
 		metricData := Metrics{}
 		var buf bytes.Buffer
@@ -172,9 +191,8 @@ func (App *Application) GetMetric() http.Handler {
 	return http.HandlerFunc(getMetricfunc)
 }
 
-func (App *Application) WithLogger(h http.Handler) http.HandlerFunc {
+func (App *Application) WithLoggerZipper(h http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
 		uri := r.RequestURI
 		method := r.Method
 
@@ -183,12 +201,30 @@ func (App *Application) WithLogger(h http.Handler) http.HandlerFunc {
 			size:   0,
 		}
 
-		lw := LoggingResponseWriter{
+		zlw := LoggingZipperResponseWriter{
+			w,
 			w,
 			responseData,
 		}
+		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") && (strings.Contains(r.Header.Get("Content-Type"), "application/json") || strings.Contains(r.Header.Get("Content-Type"), "text/html")) {
+			gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				App.logger.Errorln("Error during comressing")
+			}
 
-		h.ServeHTTP(&lw, r)
+			defer gz.Close()
+			w.Header().Set("Content-Encoding", "gzip")
+			zlw = LoggingZipperResponseWriter{
+				w,
+				gz,
+				responseData,
+			}
+		}
+
+		start := time.Now()
+
+		h.ServeHTTP(&zlw, r)
 
 		duration := time.Since(start)
 
@@ -228,16 +264,16 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
-		r.Get("/", App.WithLogger(App.HTMLMetrics()))
-		r.Get("/value", App.WithLogger(App.GetMetric()))
-		r.Post("/update", App.WithLogger(App.UpdateValue()))
+		r.Get("/", App.HTMLMetrics())
+		r.Get("/value", App.GetMetric())
+		r.Post("/update", App.UpdateValue())
 	})
 
 	serverAddress, envExists := os.LookupEnv("ADDRESS")
 	if !(envExists) {
 		serverAddress = *serverAddressFlag
 	}
-	err = http.ListenAndServe(serverAddress, r)
+	err = http.ListenAndServe(serverAddress, App.WithLoggerZipper(r))
 	if err != nil {
 		App.logger.Fatalw(err.Error(), "event", "start server")
 	}

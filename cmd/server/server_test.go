@@ -101,7 +101,7 @@ func TestProcessRequest(t *testing.T) {
 
 			w := httptest.NewRecorder()
 
-			h := http.HandlerFunc(App.WithLogger(App.UpdateValue()))
+			h := http.HandlerFunc(App.UpdateValue())
 			h(w, request)
 
 			res := w.Result()
@@ -228,7 +228,7 @@ func TestGetMetric(t *testing.T) {
 
 			w := httptest.NewRecorder()
 
-			h := http.HandlerFunc(App.WithLogger(App.GetMetric()))
+			h := http.HandlerFunc(App.GetMetric())
 			h(w, request)
 
 			res := w.Result()
