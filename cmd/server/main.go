@@ -113,7 +113,7 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 		}
 
 		if App.Storage.backup {
-			file, err := os.OpenFile(App.Storage.fileStore, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+			file, err := os.OpenFile(App.Storage.fileStore, os.O_RDWR|os.O_CREATE, 0666)
 			if err != nil {
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 				App.logger.Errorln("Error while openning file for backup")
