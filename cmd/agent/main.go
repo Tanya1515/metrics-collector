@@ -24,6 +24,13 @@ var (
 	serverAddressFlag  *string
 )
 
+func init() {
+	reportIntervalFlag = flag.Int("r", 10, "time duration for sending metrics")
+	pollIntervalFlag = flag.Int("p", 2, "time duration for getting metrics")
+	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
+}
+
+
 type Metrics struct {
 	ID    string   `json:"id"`
 	MType string   `json:"type"`
@@ -54,12 +61,6 @@ func (metricData *Metrics) Compress() ([]byte, error) {
 	}
 
 	return b.Bytes(), nil
-}
-
-func init() {
-	reportIntervalFlag = flag.Int("r", 10, "time duration for sending metrics")
-	pollIntervalFlag = flag.Int("p", 2, "time duration for getting metrics")
-	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
 }
 
 func CheckValue(fieldName string) bool {
