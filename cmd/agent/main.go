@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -26,6 +29,31 @@ type Metrics struct {
 	MType string   `json:"type"`
 	Delta *int64   `json:"delta,omitempty"`
 	Value *float64 `json:"value,omitempty"`
+}
+
+func (metricData *Metrics) Compress() ([]byte, error) {
+	var b bytes.Buffer
+
+	w, err := gzip.NewWriterLevel(&b, gzip.BestCompression)
+	if err != nil {
+		return nil, fmt.Errorf("failed init compress writer: %v", err)
+	}
+
+	metricDataBytes, err := json.Marshal(metricData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compress data: %v", err)
+	}
+	_, err = w.Write(metricDataBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed write data to compress temporary buffer: %v", err)
+	}
+
+	err = w.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed compress data: %v", err)
+	}
+
+	return b.Bytes(), nil
 }
 
 func init() {
@@ -125,9 +153,15 @@ func main() {
 				fmt.Printf("Error while parsing metric %s: %s", metricName, err)
 			}
 			metricData.Value = &metricValueF64
+			compressedMetric, err := metricData.Compress()
+			if err != nil {
+				fmt.Println(err)
+			}
 			_, err = client.R().
 				SetHeader("Content-Type", "application/json").
-				SetBody(metricData).
+				SetHeader("Content-Encoding", "gzip").
+				SetHeader("Accept-Encoding", "gzip").
+				SetBody(compressedMetric).
 				Post(requestString)
 			if err != nil {
 				fmt.Printf("Error while sending metric %s: %s\n", metricName, err)
