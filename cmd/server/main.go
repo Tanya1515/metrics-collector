@@ -36,6 +36,20 @@ type Metrics struct {
 	Value *float64 `json:"value,omitempty"`
 }
 
+var (
+	serverAddressFlag *string
+	storeIntervalFlag *int
+	fileStorePathFlag *string
+	restoreFlag       *bool
+)
+
+func init() {
+	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
+	storeIntervalFlag = flag.Int("i", 300, "time duration for saving metrics")
+	fileStorePathFlag = flag.String("f", "/tmp/metrics-db.json", "filename for storing metrics")
+	restoreFlag = flag.Bool("r", true, "store all info")
+}
+
 func (App *Application) UpdateValue() http.HandlerFunc {
 	updateValuefunc := func(rw http.ResponseWriter, r *http.Request) {
 		var metricData Metrics
@@ -97,6 +111,24 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			App.logger.Errorln("Error during serialization")
 		}
+
+		if App.Storage.backup {
+			file, err := os.OpenFile(App.Storage.fileStore, os.O_RDWR|os.O_CREATE, 0666)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				App.logger.Errorln("Error while openning file for backup")
+			}
+			_, err = file.Write(metricDataBytes)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				App.logger.Errorln("Error while writting data for backup")
+			}
+			// if err = file.Write(); err != nil {
+			// 	http.Error(rw, err.Error(), http.StatusInternalServerError)
+			// 	App.logger.Errorln("Error while writting data for backup")
+			// }
+		}
+
 		rw.Write(metricDataBytes)
 
 	}
@@ -191,6 +223,16 @@ func (App *Application) GetMetric() http.HandlerFunc {
 	return http.HandlerFunc(getMetricfunc)
 }
 
+func (App *Application) Store() error {
+
+	return nil
+}
+
+func (App *Application) SaveMetrics() error {
+
+	return nil
+}
+
 func (App *Application) WithLoggerZipper(h http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		uri := r.RequestURI
@@ -241,12 +283,14 @@ func (App *Application) WithLoggerZipper(h http.Handler) http.HandlerFunc {
 
 func main() {
 	var mutex sync.Mutex
-	var Storage = &MemStorage{CounterStorage: make(map[string]int64, 100), GaugeStorage: make(map[string]float64, 100), mutex: &mutex}
-	serverAddressFlag := flag.String("a", "localhost:8080", "server address")
+	var Storage = &MemStorage{CounterStorage: make(map[string]int64, 100), GaugeStorage: make(map[string]float64, 100), mutex: &mutex, backup: false, fileStore: ""}
 
 	flag.Parse()
 
-	serverAddress := "localhost:8080"
+	serverAddress, envExists := os.LookupEnv("ADDRESS")
+	if !(envExists) {
+		serverAddress = *serverAddressFlag
+	}
 
 	logger, err := zap.NewDevelopment()
 	if err != nil {
@@ -261,6 +305,41 @@ func main() {
 		"Starting server",
 		"addr", serverAddress,
 	)
+	storeInterval := 300
+	restore := true
+	storeIntervalEnv, envExists := os.LookupEnv("STORE_INTERVAL")
+	if !(envExists) {
+		storeInterval = *storeIntervalFlag
+	} else {
+		storeInterval, err = strconv.Atoi(storeIntervalEnv)
+		if err != nil {
+			App.logger.Errorln("Error when converting string to int: %v", err)
+		}
+	}
+
+	App.Storage.fileStore, envExists = os.LookupEnv("FILE_STORAGE_PATH")
+	if !(envExists) {
+		App.Storage.fileStore = *fileStorePathFlag
+	}
+
+	restoreEnv, envExists := os.LookupEnv("RESTORE")
+	if !(envExists) {
+		restore = *restoreFlag
+	} else {
+		restore, err = strconv.ParseBool(restoreEnv)
+		if err != nil {
+			App.logger.Errorln("Error when converting string to bool: %v", err)
+		}
+	}
+	if restore && (App.Storage.fileStore != "") {
+		App.Store()
+	}
+
+	if (storeInterval != 0) && (App.Storage.fileStore != "") {
+		go App.SaveMetrics()
+	} else if (storeInterval == 0) && (App.Storage.fileStore != "") {
+		App.Storage.backup = true
+	}
 
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
@@ -269,10 +348,6 @@ func main() {
 		r.Post("/update", App.UpdateValue())
 	})
 
-	serverAddress, envExists := os.LookupEnv("ADDRESS")
-	if !(envExists) {
-		serverAddress = *serverAddressFlag
-	}
 	err = http.ListenAndServe(serverAddress, App.WithLoggerZipper(r))
 	if err != nil {
 		App.logger.Fatalw(err.Error(), "event", "start server")
