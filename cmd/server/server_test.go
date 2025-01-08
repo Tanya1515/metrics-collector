@@ -6,8 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
+	"sync"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -82,6 +82,7 @@ func TestProcessRequest(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		var mutex sync.RWMutex
 		t.Run("Test:", func(t *testing.T) {
 			var buf bytes.Buffer
 			bodyRequestEncode := json.NewEncoder(&buf)
@@ -101,7 +102,7 @@ func TestProcessRequest(t *testing.T) {
 
 			w := httptest.NewRecorder()
 
-			h := http.HandlerFunc(App.UpdateValue())
+			h := http.HandlerFunc(App.UpdateValue(&mutex))
 			h(w, request)
 
 			res := w.Result()
