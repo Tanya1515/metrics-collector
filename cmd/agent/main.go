@@ -86,6 +86,7 @@ func MakeString(serverAddress, metricName, metricValue, metricType string) strin
 func main() {
 
 	fmt.Println("Start agent")
+	var err error
 	mapMetrics := make(map[string]interface{}, 20)
 	PollCount := 0
 
@@ -100,22 +101,22 @@ func main() {
 		serverAddress = *serverAddressFlag
 	}
 
+	reportInt := *reportIntervalFlag
 	reportInterval, reportIntExists := os.LookupEnv("REPORT_INTERVAL")
-	reportInt, err := strconv.Atoi(reportInterval)
-	if err != nil {
-		fmt.Printf("Error while transforming to int: %s", err)
-	}
-	if !(reportIntExists) {
-		reportInt = *reportIntervalFlag
+	if reportIntExists {
+		reportInt, err = strconv.Atoi(reportInterval)
+		if err != nil {
+			fmt.Printf("Error while transforming to int: %s\n", err)
+		}
 	}
 
+	pollInt := *pollIntervalFlag
 	pollInterval, pollIntervalExist := os.LookupEnv("POLL_INTERVAL")
-	pollInt, err := strconv.Atoi(pollInterval)
-	if err != nil {
-		fmt.Printf("Error while transforming to int: %s", err)
-	}
-	if !(pollIntervalExist) {
-		pollInt = *pollIntervalFlag
+	if pollIntervalExist {
+		pollInt, err = strconv.Atoi(pollInterval)
+		if err != nil {
+			fmt.Printf("Error while transforming to int: %s\n", err)
+		}
 	}
 
 	go GetMetrics(&mapMetrics, &PollCount, time.Duration(pollInt), &mutex)
@@ -130,7 +131,7 @@ func main() {
 				SetHeader("Content-Type", "text/plain").
 				Post(requestString)
 			if err != nil {
-				fmt.Printf("Error while sending metric %s: %s", metricName, err)
+				fmt.Printf("Error while sending metric %s: %s\n", metricName, err)
 			}
 
 			requestString = MakeString(serverAddress, metricName, fmt.Sprint(PollCount), "counter")
@@ -138,7 +139,7 @@ func main() {
 				SetHeader("Content-Type", "text/plain").
 				Post(requestString)
 			if err != nil {
-				fmt.Printf("Error while sending PollCounter for metric %s: %s", metricName, err)
+				fmt.Printf("Error while sending PollCounter for metric %s: %s\n", metricName, err)
 			}
 		}
 		mutex.RUnlock()

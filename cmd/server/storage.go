@@ -1,6 +1,8 @@
 package main
 
 import (
+	"sync"
+
 	"github.com/pkg/errors"
 )
 
@@ -9,6 +11,7 @@ var errorMetricExists = errors.New("ErrMetricExists")
 type MemStorage struct {
 	CounterStorage map[string] int64
 	GaugeStorage   map[string] float64
+	mutex		   sync.Mutex
 }
 
 type ReposutiryInterface interface {

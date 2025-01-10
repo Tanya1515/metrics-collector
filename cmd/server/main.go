@@ -36,7 +36,7 @@ func (App *Application) ProcessRequest() http.HandlerFunc {
 			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
 			return
 		}
-
+		App.Storage.mutex.Lock()
 		if metrics[0] == "counter" {
 			metricValueInt64, err := strconv.ParseInt(metrics[2], 10, 64)
 			if err != nil {
@@ -53,6 +53,7 @@ func (App *Application) ProcessRequest() http.HandlerFunc {
 			}
 			App.Storage.RepositoryAddGaugeValue(metrics[1], metricValueFloat64)
 		}
+		App.Storage.mutex.Unlock()
 
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		rw.WriteHeader(http.StatusOK)
@@ -65,6 +66,7 @@ func (App *Application) ProcessRequest() http.HandlerFunc {
 func (App *Application) HTMLMetrics() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		builder := strings.Builder{}
+		App.Storage.mutex.Lock()
 		for key, value := range App.Storage.GaugeStorage {
 			builder.WriteString(key)
 			builder.WriteString(": ")
@@ -83,7 +85,7 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 		counterResult := builder.String()
 
 		res := ResultMetrics{GaugeMetrics: gaugeResult, CounterMetrics: counterResult}
-
+		App.Storage.mutex.Unlock()
 		t, err := template.ParseFiles("./html/metrics.html")
 		if err != nil {
 			http.Error(rw, "Error 500: error while processing html page", http.StatusInternalServerError)
@@ -101,6 +103,8 @@ func (App *Application) GetMetric() http.HandlerFunc {
 			return
 		}
 		metricRes := ""
+
+		App.Storage.mutex.Lock()
 		if metric[0] == "counter" {
 			metricValue, err := App.Storage.GetCounterValueByName(metric[1])
 			if err != nil {
@@ -121,6 +125,7 @@ func (App *Application) GetMetric() http.HandlerFunc {
 			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metric[0]), http.StatusBadRequest)
 			return
 		}
+		App.Storage.mutex.Unlock()
 
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		rw.WriteHeader(http.StatusOK)
