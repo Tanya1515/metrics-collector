@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -17,7 +18,7 @@ type ResultMetrics struct {
 	CounterMetrics string
 }
 
-type Application struct{
+type Application struct {
 	Storage *MemStorage
 }
 
@@ -25,33 +26,37 @@ func (App *Application) ProcessRequest() http.HandlerFunc {
 
 	return func(rw http.ResponseWriter, r *http.Request) {
 
-		metrics := strings.Split(strings.TrimPrefix(r.URL.Path, "/update/"), "/")
+		metricType := chi.URLParam(r, "metricType")
+		metricName := chi.URLParam(r, "metricName")
+		metricValue := chi.URLParam(r, "metricValue")
 
-		if (metrics[0] != "counter") && (metrics[0] != "gauge") {
-			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metrics[0]), http.StatusBadRequest)
+		if (metricType != "counter") && (metricType != "gauge") {
+			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metricType), http.StatusBadRequest)
 			return
 		}
 
-		if metrics[1] == "" {
+		if metricName == "" {
 			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
 			return
 		}
 		App.Storage.mutex.Lock()
-		if metrics[0] == "counter" {
-			metricValueInt64, err := strconv.ParseInt(metrics[2], 10, 64)
+		if metricType == "counter" {
+			metricValueInt64, err := strconv.ParseInt(metricValue, 10, 64)
 			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metrics[2]), http.StatusBadRequest)
+				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metricValue), http.StatusBadRequest)
+				App.Storage.mutex.Unlock()
 				return
 			}
-			App.Storage.RepositoryAddCounterValue(metrics[1], metricValueInt64)
+			App.Storage.RepositoryAddCounterValue(metricName, metricValueInt64)
 		}
-		if metrics[0] == "gauge" {
-			metricValueFloat64, err := strconv.ParseFloat(metrics[2], 64)
+		if metricType == "gauge" {
+			metricValueFloat64, err := strconv.ParseFloat(metricValue, 64)
 			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metrics[2]), http.StatusBadRequest)
+				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metricValue), http.StatusBadRequest)
+				App.Storage.mutex.Unlock()
 				return
 			}
-			App.Storage.RepositoryAddGaugeValue(metrics[1], metricValueFloat64)
+			App.Storage.RepositoryAddGaugeValue(metricName, metricValueFloat64)
 		}
 		App.Storage.mutex.Unlock()
 
@@ -96,33 +101,37 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 
 func (App *Application) GetMetric() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		metric := strings.Split(strings.TrimPrefix(r.URL.Path, "/value/"), "/")
+		metricType := chi.URLParam(r, "metricType")
+		metricName := chi.URLParam(r, "metricName")
 
-		if metric[1] == "" {
+		if metricName == "" {
 			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
 			return
 		}
 		metricRes := ""
 
 		App.Storage.mutex.Lock()
-		if metric[0] == "counter" {
-			metricValue, err := App.Storage.GetCounterValueByName(metric[1])
+		if metricType == "counter" {
+			metricValue, err := App.Storage.GetCounterValueByName(metricName)
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
+				App.Storage.mutex.Unlock()
 				return
 			}
 			builder := strings.Builder{}
 			builder.WriteString(strconv.FormatInt(metricValue, 10))
 			metricRes = builder.String()
-		} else if metric[0] == "gauge" {
-			metricValue, err := App.Storage.GetGaugeValueByName(metric[1])
+		} else if metricType == "gauge" {
+			metricValue, err := App.Storage.GetGaugeValueByName(metricName)
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
+				App.Storage.mutex.Unlock()
 				return
 			}
 			metricRes = strconv.FormatFloat(metricValue, 'f', -1, 64)
 		} else {
-			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metric[0]), http.StatusBadRequest)
+			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metricType), http.StatusBadRequest)
+			App.Storage.mutex.Unlock()
 			return
 		}
 		App.Storage.mutex.Unlock()
@@ -130,12 +139,13 @@ func (App *Application) GetMetric() http.HandlerFunc {
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte(metricRes))
-		
+
 	}
 }
 
 func main() {
-	var Storage = &MemStorage{CounterStorage: make(map[string]int64, 100), GaugeStorage: make(map[string]float64, 100)}
+	var mutex sync.Mutex
+	var Storage = &MemStorage{CounterStorage: make(map[string]int64, 100), GaugeStorage: make(map[string]float64, 100), mutex: &mutex}
 	App := Application{Storage: Storage}
 	serverAddressFlag := flag.String("a", "localhost:8080", "server address")
 
@@ -152,6 +162,7 @@ func main() {
 	if !(envExists) {
 		serverAddress = *serverAddressFlag
 	}
+	fmt.Printf("Start server on address %s\n", serverAddress)
 	err := http.ListenAndServe(serverAddress, r)
 	if err != nil {
 		panic(err)

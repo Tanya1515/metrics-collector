@@ -1,33 +1,43 @@
 package main
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
+	"sync"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestProcessRequest(t *testing.T) {
+	var mutex sync.Mutex
+
 	type httpResult struct {
 		code        int
 		response    string
 		contentType string
 	}
 	tests := []struct {
-		name       string
-		metricInfo string
-		storage    *MemStorage
-		result     httpResult
-		modify     string
+		name        string
+		metricInfo  string
+		metricType  string
+		metricName  string
+		metricValue string
+		storage     *MemStorage
+		result      httpResult
+		modify      string
 	}{
 		{
-			name:       "test: Send correct counter value",
-			metricInfo: "/update/counter/value/4",
-			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
+			name:        "test: Send correct counter value",
+			metricInfo:  "/update",
+			metricType:  "counter",
+			metricName:  "value",
+			metricValue: "4",
+			storage:     &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}, mutex: &mutex},
 			result: httpResult{
 				code:        200,
 				response:    "Succesfully edit!",
@@ -36,9 +46,12 @@ func TestProcessRequest(t *testing.T) {
 			modify: "counter",
 		},
 		{
-			name:       "test: Send incorrect metric type",
-			metricInfo: "/update/test/value/1.5",
-			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
+			name:        "test: Send incorrect metric type",
+			metricInfo:  "/update",
+			metricType:  "test",
+			metricName:  "value",
+			metricValue: "1.5",
+			storage:     &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}, mutex: &mutex},
 			result: httpResult{
 				code:        400,
 				response:    "Error 400: Invalid metric type: test\n",
@@ -47,9 +60,12 @@ func TestProcessRequest(t *testing.T) {
 			modify: "",
 		},
 		{
-			name:       "test: Send correct gauge value",
-			metricInfo: "/update/gauge/value/1.5",
-			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
+			name:        "test: Send correct gauge value",
+			metricInfo:  "/update",
+			metricType:  "gauge",
+			metricName:  "value",
+			metricValue: "1.5",
+			storage:     &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}, mutex: &mutex},
 			result: httpResult{
 				code:        200,
 				response:    "Succesfully edit!",
@@ -58,9 +74,12 @@ func TestProcessRequest(t *testing.T) {
 			modify: "gauge",
 		},
 		{
-			name:       "test: Send incorrect counter value",
-			metricInfo: "/update/counter/value/1.5",
-			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
+			name:        "test: Send incorrect counter value",
+			metricInfo:  "/update",
+			metricType:  "counter",
+			metricName:  "value",
+			metricValue: "1.5",
+			storage:     &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}, mutex: &mutex},
 			result: httpResult{
 				code:        400,
 				response:    "Error 400: Invalid metric value: 1.5\n",
@@ -70,9 +89,12 @@ func TestProcessRequest(t *testing.T) {
 		},
 
 		{
-			name:       "test: Send none metric name",
-			metricInfo: "/update/counter//1",
-			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
+			name:        "test: Send none metric name",
+			metricInfo:  "/update",
+			metricType:  "counter",
+			metricName:  "",
+			metricValue: "1",
+			storage:     &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}, mutex: &mutex},
 			result: httpResult{
 				code:        404,
 				response:    "Error 404: Metric name was not found\n",
@@ -85,6 +107,13 @@ func TestProcessRequest(t *testing.T) {
 	for _, test := range tests {
 		t.Run("Test:", func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, test.metricInfo, nil)
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("metricType", test.metricType)
+			rctx.URLParams.Add("metricName", test.metricName)
+			rctx.URLParams.Add("metricValue", test.metricValue)
+			request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, rctx))
+
 			App := Application{Storage: test.storage}
 
 			w := httptest.NewRecorder()
@@ -102,18 +131,20 @@ func TestProcessRequest(t *testing.T) {
 			assert.Equal(t, test.result.response, string(resBody))
 
 			if test.modify == "counter" {
-				assert.Contains(t, test.storage.CounterStorage, (strings.Split(test.metricInfo, "/"))[3])
+				assert.Contains(t, test.storage.CounterStorage, test.metricName)
 			}
 
 			if test.modify == "gauge" {
-				assert.Contains(t, test.storage.GaugeStorage, (strings.Split(test.metricInfo, "/"))[3])
+				assert.Contains(t, test.storage.GaugeStorage, test.metricName)
 			}
 			assert.Equal(t, test.result.contentType, res.Header.Get("Content-Type"))
 		})
 	}
 }
 
-func TestGetMetric(t *testing.T){
+func TestGetMetric(t *testing.T) {
+	var mutex sync.Mutex
+
 	type httpResult struct {
 		code        int
 		response    string
@@ -122,13 +153,17 @@ func TestGetMetric(t *testing.T){
 	tests := []struct {
 		name       string
 		metricInfo string
+		metricType string
+		metricName string
 		storage    *MemStorage
 		result     httpResult
 	}{
 		{
 			name:       "test: Send incorrect metric type",
-			metricInfo: "/value/test/PollCount",
-			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
+			metricInfo: "/value",
+			metricType: "test",
+			metricName: "PollCount",
+			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}, mutex: &mutex},
 			result: httpResult{
 				code:        400,
 				response:    "Error 400: Invalid metric type: test\n",
@@ -137,8 +172,10 @@ func TestGetMetric(t *testing.T){
 		},
 		{
 			name:       "test: Get correct counter metric",
-			metricInfo: "/value/counter/PollCount",
-			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
+			metricInfo: "/value",
+			metricType: "counter",
+			metricName: "PollCount",
+			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}, mutex: &mutex},
 			result: httpResult{
 				code:        200,
 				response:    "1",
@@ -147,8 +184,10 @@ func TestGetMetric(t *testing.T){
 		},
 		{
 			name:       "test: Get correct gauge metric",
-			metricInfo: "/value/gauge/BuckHashSys",
-			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
+			metricInfo: "/value",
+			metricType: "gauge",
+			metricName: "BuckHashSys",
+			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}, mutex: &mutex},
 			result: httpResult{
 				code:        200,
 				response:    "0.1",
@@ -157,8 +196,10 @@ func TestGetMetric(t *testing.T){
 		},
 		{
 			name:       "test: Get not existing gauge metric",
-			metricInfo: "/value/gauge/GaugeTest",
-			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
+			metricInfo: "/value",
+			metricType: "gauge",
+			metricName: "GaugeTest",
+			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}, mutex: &mutex},
 			result: httpResult{
 				code:        404,
 				response:    "Error 404: GaugeTest does not exist in gauge storage: ErrMetricExists\n",
@@ -167,8 +208,10 @@ func TestGetMetric(t *testing.T){
 		},
 		{
 			name:       "test: Get not existing counter metric",
-			metricInfo: "/value/counter/PollCountEx",
-			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
+			metricInfo: "/value",
+			metricType: "counter",
+			metricName: "PollCountEx",
+			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}, mutex: &mutex},
 			result: httpResult{
 				code:        404,
 				response:    "Error 404: PollCountEx does not exist in counter storage: ErrMetricExists\n",
@@ -177,8 +220,10 @@ func TestGetMetric(t *testing.T){
 		},
 		{
 			name:       "test: Get request without metric name",
-			metricInfo: "/value/counter/",
-			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}},
+			metricInfo: "/value",
+			metricType: "counter",
+			metricName: "",
+			storage:    &MemStorage{CounterStorage: map[string]int64{"PollCount": 1}, GaugeStorage: map[string]float64{"BuckHashSys": 0.1}, mutex: &mutex},
 			result: httpResult{
 				code:        404,
 				response:    "Error 404: Metric name was not found\n",
@@ -187,9 +232,14 @@ func TestGetMetric(t *testing.T){
 		},
 	}
 
-	for _, test := range tests{
+	for _, test := range tests {
 		t.Run("Test:", func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodGet, test.metricInfo, nil)
+			request := httptest.NewRequest(http.MethodGet, "/value", nil)
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("metricType", test.metricType)
+			rctx.URLParams.Add("metricName", test.metricName)
+			request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, rctx))
 
 			App := Application{Storage: test.storage}
 

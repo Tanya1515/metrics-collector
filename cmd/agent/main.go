@@ -127,6 +127,7 @@ func main() {
 		for metricName, metricValue := range mapMetrics {
 			metricValueStr := fmt.Sprint(metricValue)
 			requestString := MakeString(serverAddress, metricName, metricValueStr, "gauge")
+			fmt.Printf("Send request %s to address %s for gauge metric with name %s with value %v \n", requestString, serverAddress, metricName, metricValueStr)
 			_, err := client.R().
 				SetHeader("Content-Type", "text/plain").
 				Post(requestString)
@@ -135,6 +136,7 @@ func main() {
 			}
 
 			requestString = MakeString(serverAddress, metricName, fmt.Sprint(PollCount), "counter")
+			fmt.Printf("Send request %s to address %s for counter metric with name %s with value %v \n", requestString, serverAddress, metricName, fmt.Sprint(PollCount))
 			_, err = client.R().
 				SetHeader("Content-Type", "text/plain").
 				Post(requestString)
@@ -142,6 +144,10 @@ func main() {
 				fmt.Printf("Error while sending PollCounter for metric %s: %s\n", metricName, err)
 			}
 		}
+		if err == nil {
+			PollCount = 0
+		}
+
 		mutex.RUnlock()
 	}
 }
