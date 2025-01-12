@@ -235,7 +235,7 @@ func TestGetMetric(t *testing.T) {
 	for _, test := range tests {
 		t.Run("Test:", func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, "/value", nil)
-
+			// add path parameters to chi request: https://github.com/go-chi/chi/blob/91a3777c41c3d3493a446f690b572d93a76cba73/mux_test.go#L1143-L1145
 			rctx := chi.NewRouteContext()
 			rctx.URLParams.Add("metricType", test.metricType)
 			rctx.URLParams.Add("metricName", test.metricName)
