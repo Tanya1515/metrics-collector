@@ -74,7 +74,7 @@ func MakeString(serverAddress, metricName, metricValue, metricType string) strin
 	if metricType == "counter" {
 		builder.WriteString("http://")
 		builder.WriteString(serverAddress)
-		builder.WriteString("/update/counter/PollCount")
+		builder.WriteString("/update/counter/")
 		builder.WriteString(metricName)
 		builder.WriteString("/")
 		builder.WriteString(metricValue)
@@ -135,14 +135,14 @@ func main() {
 				fmt.Printf("Error while sending metric %s: %s\n", metricName, err)
 			}
 
-			requestString = MakeString(serverAddress, metricName, fmt.Sprint(PollCount), "counter")
-			fmt.Printf("Send request %s to address %s for counter metric with name %s with value %v \n", requestString, serverAddress, metricName, fmt.Sprint(PollCount))
-			_, err = client.R().
-				SetHeader("Content-Type", "text/plain").
-				Post(requestString)
-			if err != nil {
-				fmt.Printf("Error while sending PollCounter for metric %s: %s\n", metricName, err)
-			}
+		}
+		requestString := MakeString(serverAddress, "PollCount", fmt.Sprint(PollCount), "counter")
+		fmt.Printf("Send request %s to address %s for counter metric with name %s with value %v \n", requestString, serverAddress, "PollCount", fmt.Sprint(PollCount))
+		_, err = client.R().
+			SetHeader("Content-Type", "text/plain").
+			Post(requestString)
+		if err != nil {
+			fmt.Printf("Error while sending PollCounter for metric %s: %s\n", "PollCount", err)
 		}
 		if err == nil {
 			PollCount = 0
