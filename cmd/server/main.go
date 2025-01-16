@@ -237,7 +237,6 @@ func main() {
 	if !(envExists) {
 		serverAddress = *serverAddressFlag
 	}
-	fmt.Printf("Start server on address %s\n", serverAddress)
 	err = http.ListenAndServe(serverAddress, r)
 	if err != nil {
 		App.logger.Fatalw(err.Error(), "event", "start server")
