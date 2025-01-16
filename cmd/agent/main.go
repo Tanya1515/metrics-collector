@@ -118,14 +118,12 @@ func main() {
 		time.Sleep(time.Duration(reportInt) * time.Second)
 		mutex.RLock()
 		for metricName, metricValue := range mapMetrics {
-			fmt.Println(metricName)
 			metricData.ID = metricName
 			metricData.MType = "gauge"
 			metricValueF64, err = strconv.ParseFloat(fmt.Sprint(metricValue), 64)
 			if err != nil {
 				fmt.Printf("Error while parsing metric %s: %s", metricName, err)
 			}
-			fmt.Println(reflect.ValueOf(metricValue).Type())
 			metricData.Value = &metricValueF64
 			_, err = client.R().
 				SetHeader("Content-Type", "application/json").
