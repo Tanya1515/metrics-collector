@@ -51,9 +51,9 @@ func (App *Application) UpdateValue() http.Handler {
 			return
 		}
 
-		if (metricType != "counter") && (metricType != "gauge") {
-			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metricType), http.StatusBadRequest)
-			App.logger.Errorln("Invalid metric type:", metricType)
+		if (metricData.MType != "counter") && (metricData.MType != "gauge") {
+			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metricData.MType), http.StatusBadRequest)
+			App.logger.Errorln("Error 400: Invalid metric type:", metricData.MType)
 			return
 		}
 
