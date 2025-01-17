@@ -51,7 +51,7 @@ func init() {
 	restoreFlag = flag.Bool("r", true, "store all info")
 }
 
-func (App *Application) UpdateValue(mutex *sync.RWMutex) http.HandlerFunc {
+func (App *Application) UpdateValue() http.HandlerFunc {
 	updateValuefunc := func(rw http.ResponseWriter, r *http.Request) {
 		var metricData Metrics
 		var buf bytes.Buffer
@@ -96,14 +96,12 @@ func (App *Application) UpdateValue(mutex *sync.RWMutex) http.HandlerFunc {
 			App.logger.Errorln("Metric name was not found")
 			return
 		}
-		mutex.Lock()
 		if metricData.MType == "counter" {
 			App.Storage.RepositoryAddCounterValue(metricData.ID, *metricData.Delta)
 		}
 		if metricData.MType == "gauge" {
 			App.Storage.RepositoryAddGaugeValue(metricData.ID, *metricData.Value)
 		}
-		mutex.Unlock()
 
 		rw.Header().Set("Content-Type", "application/json")
 		rw.WriteHeader(http.StatusOK)
@@ -265,7 +263,7 @@ func (App *Application) Store() error {
 	}
 }
 
-func (App *Application) SaveMetrics(mutex *sync.RWMutex, timer time.Duration) {
+func (App *Application) SaveMetrics(timer time.Duration) {
 
 	gaugeMetric := Metrics{ID: "", MType: "gauge"}
 	counterMetric := Metrics{ID: "", MType: "counter"}
@@ -274,7 +272,6 @@ func (App *Application) SaveMetrics(mutex *sync.RWMutex, timer time.Duration) {
 		if err != nil {
 			App.logger.Errorln("Error while openning file: %s", err)
 		}
-		mutex.RLock()
 		for metricName, metricValue := range App.Storage.GaugeStorage {
 			gaugeMetric.ID = metricName
 			gaugeMetric.Value = &metricValue
@@ -310,7 +307,6 @@ func (App *Application) SaveMetrics(mutex *sync.RWMutex, timer time.Duration) {
 				App.logger.Errorln("Error while writting line transition: %s", err)
 			}
 		}
-		mutex.RUnlock()
 		err = file.Close()
 		if err != nil {
 			App.logger.Errorln("Error while closing file: %s", err)
@@ -423,7 +419,7 @@ func main() {
 	}
 
 	if (storeInterval != 0) && (App.Storage.fileStore != "") {
-		go App.SaveMetrics(&mutex, time.Duration(storeInterval))
+		go App.SaveMetrics(time.Duration(storeInterval))
 	} else if (storeInterval == 0) && (App.Storage.fileStore != "") {
 		App.Storage.backup = true
 	}
@@ -432,7 +428,7 @@ func main() {
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", App.HTMLMetrics())
 		r.Get("/value", App.GetMetric())
-		r.Post("/update", App.UpdateValue(&mutex))
+		r.Post("/update", App.UpdateValue())
 	})
 
 	err = http.ListenAndServe(serverAddress, App.WithLoggerZipper(r))
