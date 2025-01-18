@@ -135,15 +135,17 @@ func main() {
 		}
 		metricData.ID = "PollCount"
 		metricData.MType = "counter"
-		metricValueI64 := int64(PollCount)
-		metricData.Delta = &metricValueI64
+		metricData.Delta = &PollCount
 		_, err = client.R().
 			SetHeader("Content-Type", "application/json").
 			SetBody(metricData).
 			Post(requestString)
 		if err != nil {
 			fmt.Printf("Error while sending PollCounter for metric PollCount: %s", err)
+		} else {
+			PollCount = 0
 		}
+
 		mutex.RUnlock()
 	}
 }
