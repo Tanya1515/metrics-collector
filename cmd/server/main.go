@@ -143,7 +143,8 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 	htmlMetricsfunc := func(rw http.ResponseWriter, r *http.Request) {
 
 		builder := strings.Builder{}
-		for key, value := range App.Storage.GaugeStorage {
+		allGaugeMetrics := App.Storage.GetAllGaugeMetrics()
+		for key, value := range allGaugeMetrics {
 			builder.WriteString(key)
 			builder.WriteString(": ")
 			builder.WriteString(strconv.FormatFloat(value, 'f', -1, 64))
@@ -152,7 +153,8 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 		gaugeResult := builder.String()
 
 		builder = strings.Builder{}
-		for key, value := range App.Storage.CounterStorage {
+		allCounterMetrics := App.Storage.GetAllCounterMetrics()
+		for key, value := range allCounterMetrics {
 			builder.WriteString(key)
 			builder.WriteString(": ")
 			builder.WriteString(strconv.FormatInt(value, 10))
@@ -273,8 +275,8 @@ func (App *Application) SaveMetrics(timer time.Duration) {
 		if err != nil {
 			App.logger.Errorln("Error while openning file: %s", err)
 		}
-		App.Storage.mutex.Lock()
-		for metricName, metricValue := range App.Storage.GaugeStorage {
+		allGaugeMetrics := App.Storage.GetAllGaugeMetrics()
+		for metricName, metricValue := range allGaugeMetrics {
 			gaugeMetric.ID = metricName
 			gaugeMetric.Value = &metricValue
 
@@ -291,8 +293,8 @@ func (App *Application) SaveMetrics(timer time.Duration) {
 				App.logger.Errorln("Error while writting line transition: %s", err)
 			}
 		}
-
-		for metricName, metricValue := range App.Storage.CounterStorage {
+		allCounterMetrics := App.Storage.GetAllCounterMetrics()
+		for metricName, metricValue := range allCounterMetrics {
 			counterMetric.ID = metricName
 			counterMetric.Delta = &metricValue
 
@@ -313,7 +315,6 @@ func (App *Application) SaveMetrics(timer time.Duration) {
 		if err != nil {
 			App.logger.Errorln("Error while closing file: %s", err)
 		}
-		App.Storage.mutex.Unlock()
 
 		time.Sleep(timer * time.Second)
 	}
@@ -370,7 +371,7 @@ func (App *Application) WithLoggerZipper(h http.Handler) http.HandlerFunc {
 
 func main() {
 	var mutex sync.Mutex
-	var Storage = &MemStorage{CounterStorage: make(map[string]int64, 100), GaugeStorage: make(map[string]float64, 100), mutex: &mutex, backup: false, fileStore: ""}
+	var Storage = &MemStorage{counterStorage: make(map[string]int64, 100), gaugeStorage: make(map[string]float64, 100), mutex: &mutex, backup: false, fileStore: ""}
 
 	flag.Parse()
 

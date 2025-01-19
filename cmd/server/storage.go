@@ -9,8 +9,8 @@ import (
 var errorMetricExists = errors.New("ErrMetricExists")
 
 type MemStorage struct {
-	CounterStorage map[string]int64
-	GaugeStorage   map[string]float64
+	counterStorage map[string]int64
+	gaugeStorage   map[string]float64
 	mutex          *sync.Mutex
 	backup         bool
 	fileStore      string
@@ -25,28 +25,28 @@ func (S *MemStorage) RepositoryAddValue(metricName string, metricValue int64) {
 	S.mutex.Lock()
 
 	defer S.mutex.Unlock()
-	S.CounterStorage[metricName] = metricValue
+	S.counterStorage[metricName] = metricValue
 }
 
 func (S *MemStorage) RepositoryAddCounterValue(metricName string, metricValue int64) {
 	S.mutex.Lock()
 
 	defer S.mutex.Unlock()
-	S.CounterStorage[metricName] = S.CounterStorage[metricName] + metricValue
+	S.counterStorage[metricName] = S.counterStorage[metricName] + metricValue
 }
 
 func (S *MemStorage) RepositoryAddGaugeValue(metricName string, metricValue float64) {
 	S.mutex.Lock()
 
 	defer S.mutex.Unlock()
-	S.GaugeStorage[metricName] = metricValue
+	S.gaugeStorage[metricName] = metricValue
 }
 
 func (S *MemStorage) GetCounterValueByName(metricName string) (int64, error) {
 	S.mutex.Lock()
 
 	defer S.mutex.Unlock()
-	for key, value := range S.CounterStorage {
+	for key, value := range S.counterStorage {
 		if key == metricName {
 			return value, nil
 		}
@@ -58,10 +58,27 @@ func (S *MemStorage) GetGaugeValueByName(metricName string) (float64, error) {
 	S.mutex.Lock()
 
 	defer S.mutex.Unlock()
-	for key, value := range S.GaugeStorage {
+	for key, value := range S.gaugeStorage {
 		if key == metricName {
 			return value, nil
 		}
 	}
 	return 0, errors.Wrapf(errorMetricExists, "%s does not exist in gauge storage", metricName)
+}
+
+func (S *MemStorage) GetAllGaugeMetrics() map[string]float64 {
+	S.mutex.Lock()
+
+	defer S.mutex.Unlock()
+	AllGaugeMetrics := S.gaugeStorage
+	return AllGaugeMetrics
+}
+
+func (S *MemStorage) GetAllCounterMetrics() map[string]int64 {
+	S.mutex.Lock()
+
+	defer S.mutex.Unlock()
+
+	AllCounterMetrics := S.counterStorage
+	return AllCounterMetrics
 }
