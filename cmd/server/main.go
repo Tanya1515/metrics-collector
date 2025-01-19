@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	storage "github.com/Tanya1515/metrics-collector.git/cmd/storage"
+	psql "github.com/Tanya1515/metrics-collector.git/cmd/storage/postgresql"
 	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
 )
 
@@ -60,6 +61,13 @@ func main() {
 	}
 
 	Storage = &str.MemStorage{}
+
+	if postgreSQLAddress != "" {
+		Storage = &psql.PostgreSQLConnection{Address: postgreSQLAddress, UserName: "postgresql", Password: "password", DBName: "metrics-collector"}
+
+	} else {
+		Storage = &str.MemStorage{}
+	}
 
 	err := Storage.Init()
 	if err != nil {
