@@ -16,7 +16,7 @@ import (
 
 func TestProcessRequest(t *testing.T) {
 	var mutex sync.Mutex
-	var gaugeMetricValue float64 = 1.5
+	var gaugeMetricValue = 1.5
 	var counterMetrciValue int64 = 4
 	type httpResult struct {
 		code        int
