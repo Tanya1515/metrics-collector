@@ -38,10 +38,12 @@ var (
 	storeIntervalFlag *int
 	fileStorePathFlag *string
 	restoreFlag       *bool
+	postgreSQLFlag    *string
 )
 
 func init() {
 	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
+	postgreSQLFlag = flag.String("d", "", "credentials for database")
 	storeIntervalFlag = flag.Int("i", 300, "time duration for saving metrics")
 	fileStorePathFlag = flag.String("f", "/tmp/metrics-db.json", "filename for storing metrics")
 	restoreFlag = flag.Bool("r", true, "store all info")
@@ -119,6 +121,7 @@ func main() {
 		r.Post("/update/{metricType}/{metricName}/{metricValue}", App.UpdateValuePath())
 		r.Post("/value/", App.GetMetric())
 		r.Post("/update/", App.UpdateValue())
+		r.Get("/ping", App.CheckStorageConnection())
 	})
 
 	err = http.ListenAndServe(serverAddress, App.WithLoggerZipper(r))
