@@ -21,6 +21,13 @@ type ReposutiryInterface interface {
 	RepositoryAddGaugeValue()
 }
 
+func (S *MemStorage) RepositoryAddValue(metricName string, metricValue int64) {
+	S.mutex.Lock()
+
+	defer S.mutex.Unlock()
+	S.CounterStorage[metricName] = metricValue
+}
+
 func (S *MemStorage) RepositoryAddCounterValue(metricName string, metricValue int64) {
 	S.mutex.Lock()
 

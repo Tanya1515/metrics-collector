@@ -129,7 +129,7 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 			_, err = file.WriteString("\n")
 			if err != nil {
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				App.logger.Errorln("Error while writting line transition for backup")
+				App.logger.Errorln("Error while writting line transition: %s", err)
 			}
 		}
 
@@ -258,7 +258,7 @@ func (App *Application) Store() error {
 		}
 
 		if metric.MType == "counter" {
-			App.Storage.RepositoryAddCounterValue(metric.ID, *metric.Delta)
+			App.Storage.RepositoryAddValue(metric.ID, *metric.Delta)
 		}
 	}
 }
@@ -268,10 +268,12 @@ func (App *Application) SaveMetrics(timer time.Duration) {
 	gaugeMetric := Metrics{ID: "", MType: "gauge"}
 	counterMetric := Metrics{ID: "", MType: "counter"}
 	for {
-		file, err := os.OpenFile(App.Storage.fileStore, os.O_WRONLY|os.O_CREATE, 0666)
+		App.logger.Infoln("Write data to backup file")
+		file, err := os.OpenFile(App.Storage.fileStore, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 		if err != nil {
 			App.logger.Errorln("Error while openning file: %s", err)
 		}
+		App.Storage.mutex.Lock()
 		for metricName, metricValue := range App.Storage.GaugeStorage {
 			gaugeMetric.ID = metricName
 			gaugeMetric.Value = &metricValue
@@ -311,6 +313,8 @@ func (App *Application) SaveMetrics(timer time.Duration) {
 		if err != nil {
 			App.logger.Errorln("Error while closing file: %s", err)
 		}
+		App.Storage.mutex.Unlock()
+
 		time.Sleep(timer * time.Second)
 	}
 
@@ -423,7 +427,6 @@ func main() {
 	} else if (storeInterval == 0) && (App.Storage.fileStore != "") {
 		App.Storage.backup = true
 	}
-
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", App.HTMLMetrics())
