@@ -4,8 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
+	"os"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -14,15 +16,15 @@ import (
 )
 
 var (
-	reportInterval *int
-	pollInterval   *int
-	serverAddress  *string
+	reportIntervalFlag *int
+	pollIntervalFlag   *int
+	serverAddressFlag  *string
 )
 
 func init() {
-	reportInterval = flag.Int("r", 10, "time duration for sending metrics")
-	pollInterval = flag.Int("p", 2, "time duration for getting metrics")
-	serverAddress = flag.String("a", "localhost:8080", "server address")
+	reportIntervalFlag = flag.Int("r", 10, "time duration for sending metrics")
+	pollIntervalFlag = flag.Int("p", 2, "time duration for getting metrics")
+	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
 }
 
 func CheckValue(fieldName string) bool {
@@ -72,7 +74,7 @@ func MakeString(serverAddress, metricName, metricValue, metricType string) strin
 	if metricType == "counter" {
 		builder.WriteString("http://")
 		builder.WriteString(serverAddress)
-		builder.WriteString("/update/counter/PollCount")
+		builder.WriteString("/update/counter/")
 		builder.WriteString(metricName)
 		builder.WriteString("/")
 		builder.WriteString(metricValue)
@@ -84,6 +86,7 @@ func MakeString(serverAddress, metricName, metricValue, metricType string) strin
 func main() {
 
 	fmt.Println("Start agent")
+	var err error
 	mapMetrics := make(map[string]interface{}, 20)
 	PollCount := 0
 
@@ -93,29 +96,58 @@ func main() {
 
 	flag.Parse()
 
-	go GetMetrics(&mapMetrics, &PollCount, time.Duration(*pollInterval), &mutex)
+	serverAddress, addressExists := os.LookupEnv("ADDRESS")
+	if !(addressExists) {
+		serverAddress = *serverAddressFlag
+	}
+
+	reportInt := *reportIntervalFlag
+	reportInterval, reportIntExists := os.LookupEnv("REPORT_INTERVAL")
+	if reportIntExists {
+		reportInt, err = strconv.Atoi(reportInterval)
+		if err != nil {
+			fmt.Printf("Error while transforming to int: %s\n", err)
+		}
+	}
+
+	pollInt := *pollIntervalFlag
+	pollInterval, pollIntervalExist := os.LookupEnv("POLL_INTERVAL")
+	if pollIntervalExist {
+		pollInt, err = strconv.Atoi(pollInterval)
+		if err != nil {
+			fmt.Printf("Error while transforming to int: %s\n", err)
+		}
+	}
+
+	go GetMetrics(&mapMetrics, &PollCount, time.Duration(pollInt), &mutex)
 
 	for {
-		time.Sleep(time.Duration(*reportInterval) * time.Second)
+		time.Sleep(time.Duration(reportInt) * time.Second)
 		mutex.RLock()
 		for metricName, metricValue := range mapMetrics {
 			metricValueStr := fmt.Sprint(metricValue)
-			requestString := MakeString(*serverAddress, metricName, metricValueStr, "gauge")
+			requestString := MakeString(serverAddress, metricName, metricValueStr, "gauge")
+			fmt.Printf("Send request %s to address %s for gauge metric with name %s with value %v \n", requestString, serverAddress, metricName, metricValueStr)
 			_, err := client.R().
 				SetHeader("Content-Type", "text/plain").
 				Post(requestString)
 			if err != nil {
-				fmt.Printf("Error while sending metric %s: %s", metricName, err)
+				fmt.Printf("Error while sending metric %s: %s\n", metricName, err)
 			}
 
-			requestString = MakeString(*serverAddress, metricName, fmt.Sprint(PollCount), "counter")
-			_, err = client.R().
-				SetHeader("Content-Type", "text/plain").
-				Post(requestString)
-			if err != nil {
-				fmt.Printf("Error while sending PollCounter for metric %s: %s", metricName, err)
-			}
 		}
+		requestString := MakeString(serverAddress, "PollCount", fmt.Sprint(PollCount), "counter")
+		fmt.Printf("Send request %s to address %s for counter metric with name %s with value %v \n", requestString, serverAddress, "PollCount", fmt.Sprint(PollCount))
+		_, err = client.R().
+			SetHeader("Content-Type", "text/plain").
+			Post(requestString)
+		if err != nil {
+			fmt.Printf("Error while sending PollCounter for metric %s: %s\n", "PollCount", err)
+		}
+		if err == nil {
+			PollCount = 0
+		}
+
 		mutex.RUnlock()
 	}
 }

@@ -84,11 +84,11 @@ func TestMakeString(t *testing.T) {
 		},
 		{
 			name:          "test: Make http-request with counter metric",
-			metricName:    "Alloc",
+			metricName:    "PollCount",
 			metricValue:   "10",
 			metricType:    "counter",
 			serverAddress: "192.168.0.1:8085",
-			result:        "http://192.168.0.1:8085/update/counter/PollCountAlloc/10",
+			result:        "http://192.168.0.1:8085/update/counter/PollCount/10",
 		},
 	}
 
