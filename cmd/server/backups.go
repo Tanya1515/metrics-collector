@@ -34,11 +34,17 @@ func (App *Application) Store() error {
 		}
 
 		if metric.MType == "gauge" {
-			App.Storage.RepositoryAddGaugeValue(metric.ID, *metric.Value)
+			err = App.Storage.RepositoryAddGaugeValue(metric.ID, *metric.Value)
+			if err != nil {
+				App.Logger.Errorln("Error while adding gauge metric %s to repository %s", metric.ID, err)
+			}
 		}
 
 		if metric.MType == "counter" {
-			App.Storage.RepositoryAddValue(metric.ID, *metric.Delta)
+			err = App.Storage.RepositoryAddValue(metric.ID, *metric.Delta)
+			if err != nil {
+				App.Logger.Errorln("Error while adding counter metric %s to repository %s", metric.ID, err)
+			}
 		}
 	}
 }
@@ -53,7 +59,10 @@ func (App *Application) SaveMetrics(timer time.Duration) {
 		if err != nil {
 			App.Logger.Errorln("Error while openning file: %s", err)
 		}
-		allGaugeMetrics := App.Storage.GetAllGaugeMetrics()
+		allGaugeMetrics, err := App.Storage.GetAllGaugeMetrics()
+		if err != nil {
+			App.Logger.Errorln("%s", err)
+		}
 		for metricName, metricValue := range allGaugeMetrics {
 			gaugeMetric.ID = metricName
 			gaugeMetric.Value = &metricValue
@@ -71,7 +80,10 @@ func (App *Application) SaveMetrics(timer time.Duration) {
 				App.Logger.Errorln("Error while writting line transition: %s", err)
 			}
 		}
-		allCounterMetrics := App.Storage.GetAllCounterMetrics()
+		allCounterMetrics, err := App.Storage.GetAllCounterMetrics()
+		if err != nil {
+			App.Logger.Errorln("%s", err)
+		}
 		for metricName, metricValue := range allCounterMetrics {
 			counterMetric.ID = metricName
 			counterMetric.Delta = &metricValue
