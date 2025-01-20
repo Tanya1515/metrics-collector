@@ -60,7 +60,10 @@ func main() {
 		serverAddress = *serverAddressFlag
 	}
 
-	Storage = &str.MemStorage{}
+	postgreSQLAddress, envExists := os.LookupEnv("DATABASE_DSN")
+	if !(envExists) {
+		postgreSQLAddress = *postgreSQLFlag
+	}
 
 	if postgreSQLAddress != "" {
 		Storage = &psql.PostgreSQLConnection{Address: postgreSQLAddress, UserName: "collector", Password: "password", DBName: "metrics_collector"}
