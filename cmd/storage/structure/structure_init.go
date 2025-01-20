@@ -27,6 +27,3 @@ func (S *MemStorage) CheckConnection(ctx context.Context) error {
 	return nil
 }
 
-func (S *MemStorage) CheckConnection(ctx context.Context) error {
-	return nil
-}

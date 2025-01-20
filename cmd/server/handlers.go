@@ -271,6 +271,28 @@ func (App *Application) GetMetricPath() http.HandlerFunc {
 	}
 }
 
+func (App *Application) CheckStorageConnection() http.HandlerFunc {
+	checkStorageConnectionfunc := func(rw http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+
+		defer cancel()
+		storageAvailable := App.Storage.CheckConnection(ctx)
+		if storageAvailable != nil {
+			http.Error(rw, storageAvailable.Error(), http.StatusInternalServerError)
+			App.Logger.Errorln("Error during Storage connection:", storageAvailable)
+		}
+		switch ctx.Err() {
+		case context.Canceled:
+			http.Error(rw, storageAvailable.Error(), http.StatusInternalServerError)
+			App.Logger.Errorln("Error during Storage connection:", storageAvailable)
+		default:
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusOK)
+		}
+	}
+	return http.HandlerFunc(checkStorageConnectionfunc)
+}
+
 func (App *Application) GetMetric() http.HandlerFunc {
 	getMetricfunc := func(rw http.ResponseWriter, r *http.Request) {
 		metricData := Metrics{}
