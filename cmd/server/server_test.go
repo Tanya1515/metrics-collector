@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestProcessRequest(t *testing.T) {
@@ -114,11 +115,17 @@ func TestProcessRequest(t *testing.T) {
 			rctx.URLParams.Add("metricValue", test.metricValue)
 			request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, rctx))
 
-			App := Application{Storage: test.storage}
+			logger, err := zap.NewDevelopment()
+			if err != nil {
+				panic(err)
+			}
+
+			defer logger.Sync()
+			App := Application{Storage: test.storage, logger: *logger.Sugar()}
 
 			w := httptest.NewRecorder()
 
-			h := http.HandlerFunc(App.ProcessRequest())
+			h := http.HandlerFunc(App.WithLogger(App.UpdateValue()))
 			h(w, request)
 
 			res := w.Result()
@@ -241,11 +248,17 @@ func TestGetMetric(t *testing.T) {
 			rctx.URLParams.Add("metricName", test.metricName)
 			request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, rctx))
 
-			App := Application{Storage: test.storage}
+			logger, err := zap.NewDevelopment()
+			if err != nil {
+				panic(err)
+			}
+
+			defer logger.Sync()
+			App := Application{Storage: test.storage, logger: *logger.Sugar()}
 
 			w := httptest.NewRecorder()
 
-			h := http.HandlerFunc(App.GetMetric())
+			h := http.HandlerFunc(App.WithLogger(App.GetMetric()))
 			h(w, request)
 
 			res := w.Result()

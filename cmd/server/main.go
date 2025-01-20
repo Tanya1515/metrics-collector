@@ -9,8 +9,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 )
 
 type ResultMetrics struct {
@@ -20,11 +22,11 @@ type ResultMetrics struct {
 
 type Application struct {
 	Storage *MemStorage
+	logger  zap.SugaredLogger
 }
 
-func (App *Application) ProcessRequest() http.HandlerFunc {
-
-	return func(rw http.ResponseWriter, r *http.Request) {
+func (App *Application) UpdateValue() http.Handler {
+	updateValuefunc := func(rw http.ResponseWriter, r *http.Request) {
 
 		metricType := chi.URLParam(r, "metricType")
 		metricName := chi.URLParam(r, "metricName")
@@ -32,17 +34,20 @@ func (App *Application) ProcessRequest() http.HandlerFunc {
 
 		if (metricType != "counter") && (metricType != "gauge") {
 			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metricType), http.StatusBadRequest)
+			App.logger.Errorln("Invalid metric type:", metricType)
 			return
 		}
 
 		if metricName == "" {
 			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
+			App.logger.Errorln("Metric name was not found")
 			return
 		}
 		if metricType == "counter" {
 			metricValueInt64, err := strconv.ParseInt(metricValue, 10, 64)
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metricValue), http.StatusBadRequest)
+				App.logger.Errorln("Invalid metric value:", err)
 				return
 			}
 			App.Storage.RepositoryAddCounterValue(metricName, metricValueInt64)
@@ -51,6 +56,7 @@ func (App *Application) ProcessRequest() http.HandlerFunc {
 			metricValueFloat64, err := strconv.ParseFloat(metricValue, 64)
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metricValue), http.StatusBadRequest)
+				App.logger.Errorln("Invalid metric value:", err)
 				return
 			}
 			App.Storage.RepositoryAddGaugeValue(metricName, metricValueFloat64)
@@ -62,10 +68,12 @@ func (App *Application) ProcessRequest() http.HandlerFunc {
 		rw.Write([]byte("Succesfully edit!"))
 
 	}
+	return http.HandlerFunc(updateValuefunc)
 }
 
-func (App *Application) HTMLMetrics() http.HandlerFunc {
-	return func(rw http.ResponseWriter, r *http.Request) {
+func (App *Application) HTMLMetrics() http.Handler {
+	htmlMetricsfunc := func(rw http.ResponseWriter, r *http.Request) {
+
 		builder := strings.Builder{}
 		for key, value := range App.Storage.GaugeStorage {
 			builder.WriteString(key)
@@ -88,9 +96,12 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 		t, err := template.ParseFiles("./html/metrics.html")
 		if err != nil {
 			http.Error(rw, "Error 500: error while processing html page", http.StatusInternalServerError)
+			App.logger.Errorln("Error while processing html page:", err)
 		}
 		t.Execute(rw, res)
 	}
+
+	return http.HandlerFunc(htmlMetricsfunc)
 }
 
 func (App *Application) GetMetric() http.HandlerFunc {
@@ -100,6 +111,7 @@ func (App *Application) GetMetric() http.HandlerFunc {
 
 		if metricName == "" {
 			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
+			App.logger.Errorln("Metric name was not found")
 			return
 		}
 		metricRes := ""
@@ -108,6 +120,7 @@ func (App *Application) GetMetric() http.HandlerFunc {
 			metricValue, err := App.Storage.GetCounterValueByName(metricName)
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
+				App.logger.Errorln("Error in CounterStorage:", err)
 				return
 			}
 			builder := strings.Builder{}
@@ -117,11 +130,13 @@ func (App *Application) GetMetric() http.HandlerFunc {
 			metricValue, err := App.Storage.GetGaugeValueByName(metricName)
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
+				App.logger.Errorln("Error in GaugeStorage:", err)
 				return
 			}
 			metricRes = strconv.FormatFloat(metricValue, 'f', -1, 64)
 		} else {
 			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metricType), http.StatusBadRequest)
+			App.logger.Errorln("Invalid metric type:", metricType)
 			return
 		}
 
@@ -132,19 +147,65 @@ func (App *Application) GetMetric() http.HandlerFunc {
 	}
 }
 
+func (App *Application) WithLogger(h http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		uri := r.RequestURI
+		method := r.Method
+
+		responseData := &ResponseData{
+			status: 0,
+			size:   0,
+		}
+
+		lw := LoggingResponseWriter{
+			w,
+			responseData,
+		}
+
+		h.ServeHTTP(&lw, r)
+
+		duration := time.Since(start)
+
+		App.logger.Infoln(
+			"URI", uri,
+			"Method", method,
+			"Duration", duration,
+			"ResponseStatus", responseData.status,
+			"ResponseSize", responseData.size,
+		)
+
+	}
+}
+
 func main() {
 	var mutex sync.Mutex
 	var Storage = &MemStorage{CounterStorage: make(map[string]int64, 100), GaugeStorage: make(map[string]float64, 100), mutex: &mutex}
-	App := Application{Storage: Storage}
 	serverAddressFlag := flag.String("a", "localhost:8080", "server address")
 
 	flag.Parse()
 
+	serverAddress := "localhost:8080"
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+
+	defer logger.Sync()
+
+	App := Application{Storage: Storage, logger: *logger.Sugar()}
+
+	App.logger.Infow(
+		"Starting server",
+		"addr", serverAddress,
+	)
+
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
-		r.Get("/", App.HTMLMetrics())
-		r.Get("/value/{metricType}/{metricName}", App.GetMetric())
-		r.Post("/update/{metricType}/{metricName}/{metricValue}", App.ProcessRequest())
+		r.Get("/", App.WithLogger(App.HTMLMetrics()))
+		r.Get("/value/{metricType}/{metricName}", App.WithLogger(App.GetMetric()))
+		r.Post("/update/{metricType}/{metricName}/{metricValue}", App.WithLogger(App.UpdateValue()))
 	})
 
 	serverAddress, envExists := os.LookupEnv("ADDRESS")
@@ -152,8 +213,8 @@ func main() {
 		serverAddress = *serverAddressFlag
 	}
 	fmt.Printf("Start server on address %s\n", serverAddress)
-	err := http.ListenAndServe(serverAddress, r)
+	err = http.ListenAndServe(serverAddress, r)
 	if err != nil {
-		panic(err)
+		App.logger.Fatalw(err.Error(), "event", "start server")
 	}
 }
