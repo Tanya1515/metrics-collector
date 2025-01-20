@@ -21,8 +21,8 @@ type RepositoryInterface interface {
 	CheckConnection(ctx context.Context) error
 
 	// return all gauge metrics
-	GetAllGaugeMetrics() map[string]float64
+	GetAllGaugeMetrics() (map[string]float64, error)
 
 	// return all counter metrics
-	GetAllCounterMetrics() map[string]int64
+	GetAllCounterMetrics() (map[string]int64, error)
 }

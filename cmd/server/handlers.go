@@ -141,7 +141,10 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 	htmlMetricsfunc := func(rw http.ResponseWriter, r *http.Request) {
 
 		builder := strings.Builder{}
-		allGaugeMetrics := App.Storage.GetAllGaugeMetrics()
+		allGaugeMetrics, err := App.Storage.GetAllGaugeMetrics()
+		if err != nil {
+			App.Logger.Errorln("%s", err)
+		}
 		for key, value := range allGaugeMetrics {
 			builder.WriteString(key)
 			builder.WriteString(": ")
@@ -151,7 +154,10 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 		gaugeResult := builder.String()
 
 		builder = strings.Builder{}
-		allCounterMetrics := App.Storage.GetAllCounterMetrics()
+		allCounterMetrics, err := App.Storage.GetAllCounterMetrics()
+		if err != nil {
+			App.Logger.Errorln("%s", err)
+		}
 		for key, value := range allCounterMetrics {
 			builder.WriteString(key)
 			builder.WriteString(": ")
