@@ -51,7 +51,7 @@ func main() {
 	Storage = &str.MemStorage{}
 
 	if postgreSQLAddress != "" {
-		Storage = &psql.PostgreSQLConnection{Address: postgreSQLAddress, UserName: "postgresql", Password: "password", DBName: "metrics-collector"}
+		Storage = &psql.PostgreSQLConnection{Address: postgreSQLAddress, UserName: "collector", Password: "password", DBName: "metrics_collector"}
 
 	} else {
 		Storage = &str.MemStorage{}
