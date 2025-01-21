@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"compress/gzip"
 )
 
@@ -18,34 +20,41 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 	updateValuefunc := func(rw http.ResponseWriter, r *http.Request) {
 		var metricData Metrics
 		var buf bytes.Buffer
+		var err error
 
-		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
-			gz, err := gzip.NewReader(r.Body)
-			if err != nil {
+		metricData.MType = chi.URLParam(r, "metricType")
+		metricData.ID = chi.URLParam(r, "metricName")
+		metricValue := chi.URLParam(r, "metricValue")
+
+		if metricData.ID == "" {
+			if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+				gz, err := gzip.NewReader(r.Body)
+				if err != nil {
+					http.Error(rw, err.Error(), http.StatusInternalServerError)
+					App.Logger.Errorln("Error during unpacking the request")
+					return
+				}
+				defer gz.Close()
+
+				_, err = buf.ReadFrom(gz)
+				if err != nil {
+					http.Error(rw, err.Error(), http.StatusInternalServerError)
+					return
+				}
+
+			} else {
+				_, err = buf.ReadFrom(r.Body)
+				if err != nil {
+					http.Error(rw, err.Error(), http.StatusBadRequest)
+					App.Logger.Errorln("Bad request catched")
+					return
+				}
+			}
+			if err := json.Unmarshal(buf.Bytes(), &metricData); err != nil {
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				App.Logger.Errorln("Error during unpacking the request")
+				App.Logger.Errorln("Error during deserialization")
 				return
 			}
-			defer gz.Close()
-
-			_, err = buf.ReadFrom(gz)
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-		} else {
-			_, err := buf.ReadFrom(r.Body)
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusBadRequest)
-				App.Logger.Errorln("Bad request catched")
-				return
-			}
-		}
-		if err := json.Unmarshal(buf.Bytes(), &metricData); err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			App.Logger.Errorln("Error during deserialization")
-			return
 		}
 
 		if (metricData.MType != "counter") && (metricData.MType != "gauge") {
@@ -60,9 +69,24 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 			return
 		}
 		if metricData.MType == "counter" {
+			if metricValue != "" {
+				*metricData.Delta, err = strconv.ParseInt(metricValue, 10, 64)
+				if err != nil {
+					http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metricValue), http.StatusBadRequest)
+					return
+				}
+			}
+
 			App.Storage.RepositoryAddCounterValue(metricData.ID, *metricData.Delta)
 		}
 		if metricData.MType == "gauge" {
+			if metricValue != "" {
+				*metricData.Value, err = strconv.ParseFloat(metricValue, 64)
+				if err != nil {
+					http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metricValue), http.StatusBadRequest)
+					return
+				}
+			}
 			App.Storage.RepositoryAddGaugeValue(metricData.ID, *metricData.Value)
 		}
 
@@ -140,18 +164,25 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 func (App *Application) GetMetric() http.HandlerFunc {
 	getMetricfunc := func(rw http.ResponseWriter, r *http.Request) {
 		metricData := Metrics{}
-		var buf bytes.Buffer
-		_, err := buf.ReadFrom(r.Body)
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusBadRequest)
-			App.Logger.Errorln("Bad request catched")
-			return
+
+		metricData.MType = chi.URLParam(r, "metricType")
+		metricData.ID = chi.URLParam(r, "metricName")
+
+		if metricData.ID == "" {
+			var buf bytes.Buffer
+			_, err := buf.ReadFrom(r.Body)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusBadRequest)
+				App.Logger.Errorln("Bad request catched")
+				return
+			}
+			if err = json.Unmarshal(buf.Bytes(), &metricData); err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				App.Logger.Errorln("Error during deserialization")
+				return
+			}
 		}
-		if err = json.Unmarshal(buf.Bytes(), &metricData); err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			App.Logger.Errorln("Error during deserialization")
-			return
-		}
+
 		if metricData.ID == "" {
 			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
 			App.Logger.Errorln("Metric name was not found")
