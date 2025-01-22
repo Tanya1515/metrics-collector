@@ -70,22 +70,24 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 		}
 		if metricData.MType == "counter" {
 			if metricValue != "" {
-				*metricData.Delta, err = strconv.ParseInt(metricValue, 10, 64)
+				metricValueInt64, err := strconv.ParseInt(metricValue, 10, 64)
 				if err != nil {
 					http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metricValue), http.StatusBadRequest)
 					return
 				}
+				metricData.Delta = &metricValueInt64
 			}
 
 			App.Storage.RepositoryAddCounterValue(metricData.ID, *metricData.Delta)
 		}
 		if metricData.MType == "gauge" {
 			if metricValue != "" {
-				*metricData.Value, err = strconv.ParseFloat(metricValue, 64)
+				metricValueFloat64, err := strconv.ParseFloat(metricValue, 64)
 				if err != nil {
 					http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metricValue), http.StatusBadRequest)
 					return
 				}
+				metricData.Value = &metricValueFloat64
 			}
 			App.Storage.RepositoryAddGaugeValue(metricData.ID, *metricData.Value)
 		}
