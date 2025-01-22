@@ -30,7 +30,6 @@ func init() {
 	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
 }
 
-
 type Metrics struct {
 	ID    string   `json:"id"`
 	MType string   `json:"type"`
@@ -99,7 +98,7 @@ func MakeString(serverAddress string) string {
 	builder := strings.Builder{}
 	builder.WriteString("http://")
 	builder.WriteString(serverAddress)
-	builder.WriteString("/update")
+	builder.WriteString("/update/")
 
 	return builder.String()
 }
