@@ -115,7 +115,7 @@ func main() {
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", App.HTMLMetrics())
-		r.Get("/value/{metricType}/{metricName}", App.GetMetric())
+		r.Get("/value/{metricType}/{metricName}", App.GetMetricPath())
 		r.Post("/update/{metricType}/{metricName}/{metricValue}", App.UpdateValue())
 		r.Get("/value", App.GetMetric())
 		r.Post("/update", App.UpdateValue())
