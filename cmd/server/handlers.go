@@ -152,13 +152,18 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 		counterResult := builder.String()
 
 		res := ResultMetrics{GaugeMetrics: gaugeResult, CounterMetrics: counterResult}
-		t, err := template.ParseFiles("./html/metrics.html")
-		if err != nil {
-			http.Error(rw, "Error 500: error while processing html page", http.StatusInternalServerError)
-			App.Logger.Errorln("Error while processing html page:", err)
-			return
-		}
-		t.Execute(rw, res)
+		tmpl := template.Must(template.New("template").Parse(`
+Counter metrics: 
+
+{{.CounterMetrics}}
+
+Gauge metrics:
+
+{{.GaugeMetrics}}
+
+		`))
+
+		tmpl.Execute(rw, res)
 	}
 
 	return http.HandlerFunc(htmlMetricsfunc)
