@@ -117,7 +117,7 @@ func main() {
 		r.Get("/", App.HTMLMetrics())
 		r.Get("/value/{metricType}/{metricName}", App.GetMetricPath())
 		r.Post("/update/{metricType}/{metricName}/{metricValue}", App.UpdateValue())
-		r.Post("/value", App.GetMetric())
+		r.Post("/value/", App.GetMetric())
 		r.Post("/update", App.UpdateValue())
 	})
 
