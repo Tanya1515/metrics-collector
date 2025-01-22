@@ -162,7 +162,8 @@ Gauge metrics:
 {{.GaugeMetrics}}
 
 		`))
-
+		rw.Header().Set("Content-Type", "text/html")
+		rw.WriteHeader(http.StatusOK)
 		tmpl.Execute(rw, res)
 	}
 
