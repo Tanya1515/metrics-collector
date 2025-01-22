@@ -156,6 +156,7 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 		if err != nil {
 			http.Error(rw, "Error 500: error while processing html page", http.StatusInternalServerError)
 			App.Logger.Errorln("Error while processing html page:", err)
+			return
 		}
 		t.Execute(rw, res)
 	}
