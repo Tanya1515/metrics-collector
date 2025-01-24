@@ -11,7 +11,7 @@ func (App *Application) Store() error {
 
 	file, err := os.OpenFile(App.FileStore, os.O_RDONLY|os.O_CREATE, 0666)
 	if err != nil {
-		App.Logger.Errorln("Error while openning file: %s", err)
+		App.Logger.Errorln("Error while openning file:", err)
 		return err
 	}
 
@@ -36,14 +36,14 @@ func (App *Application) Store() error {
 		if metric.MType == "gauge" {
 			err = App.Storage.RepositoryAddGaugeValue(metric.ID, *metric.Value)
 			if err != nil {
-				App.Logger.Errorln("Error while adding gauge metric %s to repository %s", metric.ID, err)
+				App.Logger.Errorln("Error while adding gauge metric %s to repository", metric.ID, err)
 			}
 		}
 
 		if metric.MType == "counter" {
 			err = App.Storage.RepositoryAddValue(metric.ID, *metric.Delta)
 			if err != nil {
-				App.Logger.Errorln("Error while adding counter metric %s to repository %s", metric.ID, err)
+				App.Logger.Errorln("Error while adding counter metric %s to repository", metric.ID, err)
 			}
 		}
 	}
@@ -57,11 +57,11 @@ func (App *Application) SaveMetrics(timer time.Duration) {
 		App.Logger.Infoln("Write data to backup file")
 		file, err := os.OpenFile(App.FileStore, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 		if err != nil {
-			App.Logger.Errorln("Error while openning file: %s", err)
+			App.Logger.Errorln("Error while openning file:", err)
 		}
 		allGaugeMetrics, err := App.Storage.GetAllGaugeMetrics()
 		if err != nil {
-			App.Logger.Errorln("%s", err)
+			App.Logger.Errorln(err)
 		}
 		for metricName, metricValue := range allGaugeMetrics {
 			gaugeMetric.ID = metricName
@@ -69,20 +69,20 @@ func (App *Application) SaveMetrics(timer time.Duration) {
 
 			metricBytes, err := json.Marshal(gaugeMetric)
 			if err != nil {
-				App.Logger.Errorln("Error while marshalling GaugeMetric: %s", err)
+				App.Logger.Errorln("Error while marshalling GaugeMetric:", err)
 			}
 			_, err = file.Write(metricBytes)
 			if err != nil {
-				App.Logger.Errorln("Error while writing metric info to file: %s", err)
+				App.Logger.Errorln("Error while writing metric info to file:", err)
 			}
 			_, err = file.WriteString("\n")
 			if err != nil {
-				App.Logger.Errorln("Error while writting line transition: %s", err)
+				App.Logger.Errorln("Error while writting line transition:", err)
 			}
 		}
 		allCounterMetrics, err := App.Storage.GetAllCounterMetrics()
 		if err != nil {
-			App.Logger.Errorln("%s", err)
+			App.Logger.Errorln(err)
 		}
 		for metricName, metricValue := range allCounterMetrics {
 			counterMetric.ID = metricName
@@ -90,20 +90,20 @@ func (App *Application) SaveMetrics(timer time.Duration) {
 
 			metricBytes, err := json.Marshal(counterMetric)
 			if err != nil {
-				App.Logger.Errorln("Error while marshalling CounterMetric: %s", err)
+				App.Logger.Errorln("Error while marshalling CounterMetric:", err)
 			}
 			_, err = file.Write(metricBytes)
 			if err != nil {
-				App.Logger.Errorln("Error while writing metric info to file: %s", err)
+				App.Logger.Errorln("Error while writing metric info to file:", err)
 			}
 			_, err = file.WriteString("\n")
 			if err != nil {
-				App.Logger.Errorln("Error while writting line transition: %s", err)
+				App.Logger.Errorln("Error while writting line transition:", err)
 			}
 		}
 		err = file.Close()
 		if err != nil {
-			App.Logger.Errorln("Error while closing file: %s", err)
+			App.Logger.Errorln("Error while closing file:", err)
 		}
 
 		time.Sleep(timer * time.Second)

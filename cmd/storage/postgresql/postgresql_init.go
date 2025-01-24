@@ -32,7 +32,7 @@ func (db *PostgreSQLConnection) Init() error {
 		return err
 	}
 
-	_, err = db.dbConn.Exec(`CREATE TABLE ` + MetricsTableName + ` (Id INTEGER PRIMARY KEY,
+	_, err = db.dbConn.Exec(`CREATE TABLE ` + MetricsTableName + ` (Id BIGSERIAL PRIMARY KEY,
 	                                                                metricName VARCHAR(100) NOT NULL,
 																	metricType VARCHAR(100) NOT NULL,
 																	Delta INTEGER, 
