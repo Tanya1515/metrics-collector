@@ -82,7 +82,7 @@ func main() {
 	} else {
 		storeInterval, err = strconv.Atoi(storeIntervalEnv)
 		if err != nil {
-			App.Logger.Errorln("Error when converting string to int:", err)
+			App.Logger.Errorln("Error when converting string to int: ", err)
 		}
 	}
 
@@ -97,7 +97,7 @@ func main() {
 	} else {
 		restore, err = strconv.ParseBool(restoreEnv)
 		if err != nil {
-			App.Logger.Errorln("Error when converting string to bool:", err)
+			App.Logger.Errorln("Error when converting string to bool: ", err)
 		}
 	}
 
