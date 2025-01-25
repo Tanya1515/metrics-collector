@@ -16,6 +16,7 @@ import (
 
 func (App *Application) UpdateValuePath() http.HandlerFunc {
 	updateValuefunc := func(rw http.ResponseWriter, r *http.Request) {
+		var metricData Metrics
 
 		metricType := chi.URLParam(r, "metricType")
 		metricName := chi.URLParam(r, "metricName")
@@ -32,7 +33,10 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 			App.Logger.Errorln("Metric name was not found")
 			return
 		}
+		metricData.ID = metricName
+
 		if metricType == "counter" {
+			metricData.MType = "counter"
 			metricValueInt64, err := strconv.ParseInt(metricValue, 10, 64)
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metricValue), http.StatusBadRequest)
@@ -40,8 +44,10 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 				return
 			}
 			App.Storage.RepositoryAddCounterValue(metricName, metricValueInt64)
+			metricData.Delta = &metricValueInt64
 		}
 		if metricType == "gauge" {
+			metricData.MType = "gauge"
 			metricValueFloat64, err := strconv.ParseFloat(metricValue, 64)
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metricValue), http.StatusBadRequest)
@@ -49,6 +55,34 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 				return
 			}
 			App.Storage.RepositoryAddGaugeValue(metricName, metricValueFloat64)
+			metricData.Value = &metricValueFloat64
+		}
+
+		metricDataBytes, err := json.Marshal(metricData)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			App.Logger.Errorln("Error during serialization")
+		}
+
+		if App.Backup {
+			file, err := os.OpenFile(App.FileStore, os.O_WRONLY|os.O_CREATE, 0666)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				App.Logger.Errorln("Error while openning file for backup")
+			}
+
+			defer file.Close()
+
+			_, err = file.Write(metricDataBytes)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				App.Logger.Errorln("Error while writting data for backup")
+			}
+			_, err = file.WriteString("\n")
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				App.Logger.Errorln("Error while writting line transition: %s", err)
+			}
 		}
 
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
