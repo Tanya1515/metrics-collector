@@ -36,14 +36,14 @@ func (App *Application) Store() error {
 		if metric.MType == "gauge" {
 			err = App.Storage.RepositoryAddGaugeValue(metric.ID, *metric.Value)
 			if err != nil {
-				App.Logger.Errorln("Error while adding gauge metric %s to repository", metric.ID, err)
+				App.Logger.Errorln("Error while adding gauge metric "+metric.ID+" to repository", err)
 			}
 		}
 
 		if metric.MType == "counter" {
 			err = App.Storage.RepositoryAddValue(metric.ID, *metric.Delta)
 			if err != nil {
-				App.Logger.Errorln("Error while adding counter metric %s to repository", metric.ID, err)
+				App.Logger.Errorln("Error while adding counter metric "+metric.ID+" to repository", err)
 			}
 		}
 	}

@@ -134,7 +134,7 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 
 		if (metricData.MType != "counter") && (metricData.MType != "gauge") {
 			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metricData.MType), http.StatusBadRequest)
-			App.Logger.Errorln("Error 400: Invalid metric type:", metricData.MType)
+			App.Logger.Errorln("Error 400: Invalid metric type: ", metricData.MType)
 			return
 		}
 
@@ -177,7 +177,7 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 			_, err = file.WriteString("\n")
 			if err != nil {
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				App.Logger.Errorln("Error while writting line transition:", err)
+				App.Logger.Errorln("Error while writting line transition: ", err)
 			}
 		}
 
@@ -251,7 +251,7 @@ func (App *Application) GetMetricPath() http.HandlerFunc {
 			metricValue, err := App.Storage.GetCounterValueByName(metricName)
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
-				App.Logger.Errorln("Error in CounterStorage:", err)
+				App.Logger.Errorln("Error in CounterStorage: ", err)
 				return
 			}
 			builder := strings.Builder{}
@@ -261,7 +261,7 @@ func (App *Application) GetMetricPath() http.HandlerFunc {
 			metricValue, err := App.Storage.GetGaugeValueByName(metricName)
 			if err != nil {
 				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
-				App.Logger.Errorln("Error in GaugeStorage:", err)
+				App.Logger.Errorln("Error in GaugeStorage: ", err)
 				return
 			}
 			metricRes = strconv.FormatFloat(metricValue, 'f', -1, 64)
