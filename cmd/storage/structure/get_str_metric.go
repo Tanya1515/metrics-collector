@@ -35,8 +35,8 @@ func (S *MemStorage) GetAllGaugeMetrics() map[string]float64 {
 
 	AllGaugeMetrics := make(map[string]float64, len(S.gaugeStorage))
 
-	for value_name, value := range S.gaugeStorage {
-		AllGaugeMetrics[value_name] = value
+	for valueName, value := range S.gaugeStorage {
+		AllGaugeMetrics[valueName] = value
 	}
 	return AllGaugeMetrics
 }
@@ -47,8 +47,8 @@ func (S *MemStorage) GetAllCounterMetrics() map[string]int64 {
 	defer S.mutex.Unlock()
 
 	AllCounterMetrics := make(map[string]int64, len(S.counterStorage))
-	for value_name, value := range S.counterStorage {
-		AllCounterMetrics[value_name] = value
+	for valueName, value := range S.counterStorage {
+		AllCounterMetrics[valueName] = value
 	}
 
 	return AllCounterMetrics
