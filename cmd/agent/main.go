@@ -137,7 +137,6 @@ func main() {
 		}
 	}
 
-	metricData := Metrics{}
 	requestString := MakeString(serverAddress)
 	var metricValueF64 float64
 	go GetMetrics(&mapMetrics, &PollCount, time.Duration(pollInt), &mutex)
@@ -145,7 +144,9 @@ func main() {
 	for {
 		time.Sleep(time.Duration(reportInt) * time.Second)
 		mutex.RLock()
+
 		for metricName, metricValue := range mapMetrics {
+			metricData := Metrics{}
 			metricData.ID = metricName
 			metricData.MType = "gauge"
 			metricValueF64, err = strconv.ParseFloat(fmt.Sprint(metricValue), 64)
@@ -167,6 +168,7 @@ func main() {
 				fmt.Printf("Error while sending metric %s: %s\n", metricName, err)
 			}
 		}
+		metricData := Metrics{}
 		metricData.ID = "PollCount"
 		metricData.MType = "counter"
 		metricData.Delta = &PollCount
