@@ -2,15 +2,18 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"html/template"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
+
+	storage "github.com/Tanya1515/metrics-collector.git/cmd/storage"
+	psql "github.com/Tanya1515/metrics-collector.git/cmd/storage/postgresql"
+	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
 )
 
 type ResultMetrics struct {
@@ -19,141 +22,128 @@ type ResultMetrics struct {
 }
 
 type Application struct {
-	Storage *MemStorage
+	Storage   storage.RepositoryInterface
+	Logger    zap.SugaredLogger
+	Backup    bool
+	FileStore string
 }
 
-func (App *Application) ProcessRequest() http.HandlerFunc {
-
-	return func(rw http.ResponseWriter, r *http.Request) {
-
-		metricType := chi.URLParam(r, "metricType")
-		metricName := chi.URLParam(r, "metricName")
-		metricValue := chi.URLParam(r, "metricValue")
-
-		if (metricType != "counter") && (metricType != "gauge") {
-			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metricType), http.StatusBadRequest)
-			return
-		}
-
-		if metricName == "" {
-			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
-			return
-		}
-		if metricType == "counter" {
-			metricValueInt64, err := strconv.ParseInt(metricValue, 10, 64)
-			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metricValue), http.StatusBadRequest)
-				return
-			}
-			App.Storage.RepositoryAddCounterValue(metricName, metricValueInt64)
-		}
-		if metricType == "gauge" {
-			metricValueFloat64, err := strconv.ParseFloat(metricValue, 64)
-			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metricValue), http.StatusBadRequest)
-				return
-			}
-			App.Storage.RepositoryAddGaugeValue(metricName, metricValueFloat64)
-		}
-
-		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		rw.WriteHeader(http.StatusOK)
-
-		rw.Write([]byte("Succesfully edit!"))
-
-	}
+type Metrics struct {
+	ID    string   `json:"id"`
+	MType string   `json:"type"`
+	Delta *int64   `json:"delta,omitempty"`
+	Value *float64 `json:"value,omitempty"`
 }
 
-func (App *Application) HTMLMetrics() http.HandlerFunc {
-	return func(rw http.ResponseWriter, r *http.Request) {
-		builder := strings.Builder{}
-		for key, value := range App.Storage.GaugeStorage {
-			builder.WriteString(key)
-			builder.WriteString(": ")
-			builder.WriteString(strconv.FormatFloat(value, 'f', -1, 64))
-			builder.WriteString(" \n")
-		}
-		gaugeResult := builder.String()
+var (
+	serverAddressFlag *string
+	storeIntervalFlag *int
+	fileStorePathFlag *string
+	restoreFlag       *bool
+	postgreSQLFlag    *string
+)
 
-		builder = strings.Builder{}
-		for key, value := range App.Storage.CounterStorage {
-			builder.WriteString(key)
-			builder.WriteString(": ")
-			builder.WriteString(strconv.FormatInt(value, 10))
-			builder.WriteString(" \n")
-		}
-		counterResult := builder.String()
-
-		res := ResultMetrics{GaugeMetrics: gaugeResult, CounterMetrics: counterResult}
-		t, err := template.ParseFiles("./html/metrics.html")
-		if err != nil {
-			http.Error(rw, "Error 500: error while processing html page", http.StatusInternalServerError)
-		}
-		t.Execute(rw, res)
-	}
-}
-
-func (App *Application) GetMetric() http.HandlerFunc {
-	return func(rw http.ResponseWriter, r *http.Request) {
-		metricType := chi.URLParam(r, "metricType")
-		metricName := chi.URLParam(r, "metricName")
-
-		if metricName == "" {
-			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
-			return
-		}
-		metricRes := ""
-
-		if metricType == "counter" {
-			metricValue, err := App.Storage.GetCounterValueByName(metricName)
-			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
-				return
-			}
-			builder := strings.Builder{}
-			builder.WriteString(strconv.FormatInt(metricValue, 10))
-			metricRes = builder.String()
-		} else if metricType == "gauge" {
-			metricValue, err := App.Storage.GetGaugeValueByName(metricName)
-			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
-				return
-			}
-			metricRes = strconv.FormatFloat(metricValue, 'f', -1, 64)
-		} else {
-			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metricType), http.StatusBadRequest)
-			return
-		}
-
-		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		rw.WriteHeader(http.StatusOK)
-		rw.Write([]byte(metricRes))
-
-	}
+func init() {
+	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
+	postgreSQLFlag = flag.String("d", "", "credentials for database")
+	storeIntervalFlag = flag.Int("i", 300, "time duration for saving metrics")
+	fileStorePathFlag = flag.String("f", "/tmp/metrics-db.json", "filename for storing metrics")
+	restoreFlag = flag.Bool("r", true, "store all info")
 }
 
 func main() {
-	var mutex sync.Mutex
-	var Storage = &MemStorage{CounterStorage: make(map[string]int64, 100), GaugeStorage: make(map[string]float64, 100), mutex: &mutex}
-	App := Application{Storage: Storage}
-	serverAddressFlag := flag.String("a", "localhost:8080", "server address")
+	var Storage storage.RepositoryInterface
 
 	flag.Parse()
-
-	r := chi.NewRouter()
-	r.Route("/", func(r chi.Router) {
-		r.Get("/", App.HTMLMetrics())
-		r.Get("/value/{metricType}/{metricName}", App.GetMetric())
-		r.Post("/update/{metricType}/{metricName}/{metricValue}", App.ProcessRequest())
-	})
 
 	serverAddress, envExists := os.LookupEnv("ADDRESS")
 	if !(envExists) {
 		serverAddress = *serverAddressFlag
 	}
-	fmt.Printf("Start server on address %s\n", serverAddress)
-	err := http.ListenAndServe(serverAddress, r)
+
+	postgreSQLAddress, envExists := os.LookupEnv("DATABASE_DSN")
+	if !(envExists) {
+		postgreSQLAddress = *postgreSQLFlag
+	}
+
+	if postgreSQLAddress != "" {
+		postgreSQLAddrPaaswd := strings.Split(postgreSQLAddress, ":")
+		postgreSQLPasswd := "5432"
+		if len(postgreSQLAddrPaaswd) == 2 {
+			postgreSQLPasswd = postgreSQLAddrPaaswd[1]
+		}
+		postgreSQLAddr := postgreSQLAddrPaaswd[0]
+		Storage = &psql.PostgreSQLConnection{Address: postgreSQLAddr, Port: postgreSQLPasswd, UserName: "collector", Password: "password", DBName: "metrics_collector"}
+
+	} else {
+		Storage = &str.MemStorage{}
+	}
+
+	err := Storage.Init()
 	if err != nil {
 		panic(err)
+	}
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+
+	defer logger.Sync()
+
+	App := Application{Storage: Storage, Logger: *logger.Sugar()}
+
+	App.Logger.Infow(
+		"Starting server",
+		"addr", serverAddress,
+	)
+	storeInterval := 300
+	restore := true
+	storeIntervalEnv, envExists := os.LookupEnv("STORE_INTERVAL")
+	if !(envExists) {
+		storeInterval = *storeIntervalFlag
+	} else {
+		storeInterval, err = strconv.Atoi(storeIntervalEnv)
+		if err != nil {
+			App.Logger.Errorln("Error when converting string to int: ", err)
+		}
+	}
+
+	App.FileStore, envExists = os.LookupEnv("FILE_STORAGE_PATH")
+	if !(envExists) {
+		App.FileStore = *fileStorePathFlag
+	}
+
+	restoreEnv, envExists := os.LookupEnv("RESTORE")
+	if !(envExists) {
+		restore = *restoreFlag
+	} else {
+		restore, err = strconv.ParseBool(restoreEnv)
+		if err != nil {
+			App.Logger.Errorln("Error when converting string to bool: ", err)
+		}
+	}
+	if restore && (App.FileStore != "") {
+		App.Store()
+	}
+
+	if (storeInterval != 0) && (App.FileStore != "") {
+		go App.SaveMetrics(time.Duration(storeInterval))
+	} else if (storeInterval == 0) && (App.FileStore != "") {
+		App.Backup = true
+	}
+	r := chi.NewRouter()
+	r.Route("/", func(r chi.Router) {
+		r.Get("/", App.HTMLMetrics())
+		r.Get("/value/{metricType}/{metricName}", App.GetMetricPath())
+		r.Post("/update/{metricType}/{metricName}/{metricValue}", App.UpdateValuePath())
+		r.Post("/value/", App.GetMetric())
+		r.Post("/update/", App.UpdateValue())
+		r.Get("/ping", App.CheckStorageConnection())
+	})
+
+	err = http.ListenAndServe(serverAddress, App.WithLoggerZipper(r))
+	if err != nil {
+		App.Logger.Fatalw(err.Error(), "event", "start server")
 	}
 }
