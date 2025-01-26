@@ -18,8 +18,8 @@ func (db *PostgreSQLConnection) RepositoryAddCounterValue(metricName string, met
 		return fmt.Errorf("error while getting gauge metric value %w with name %s", err, metricName)
 	}
 
-	tx, err_tr := db.dbConn.Begin()
-	if err_tr != nil {
+	tx, errTr := db.dbConn.Begin()
+	if errTr != nil {
 		return fmt.Errorf("error while starting transaction: %w", err)
 	}
 
@@ -55,8 +55,8 @@ func (db *PostgreSQLConnection) RepositoryAddGaugeValue(metricName string, metri
 		return fmt.Errorf("error while getting gauge metric value %w", err)
 	}
 
-	tx, err_tr := db.dbConn.Begin()
-	if err_tr != nil {
+	tx, errTr := db.dbConn.Begin()
+	if errTr != nil {
 		return fmt.Errorf("error while starting transaction: %w", err)
 	}
 
@@ -90,8 +90,8 @@ func (db *PostgreSQLConnection) RepositoryAddValue(metricName string, metricValu
 		return fmt.Errorf("error while getting counter metric value %w", err)
 	}
 
-	tx, err_tr := db.dbConn.Begin()
-	if err_tr != nil {
+	tx, errTr := db.dbConn.Begin()
+	if errTr != nil {
 		return fmt.Errorf("error while starting transaction: %w", err)
 	}
 
