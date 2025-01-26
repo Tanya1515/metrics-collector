@@ -10,6 +10,7 @@ import (
 
 type PostgreSQLConnection struct {
 	Address  string
+	Port     string
 	UserName string
 	Password string
 	DBName   string
@@ -24,8 +25,8 @@ const (
 
 func (db *PostgreSQLConnection) Init() error {
 	var err error
-	ps := fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=disable",
-		db.Address, db.UserName, db.Password, db.DBName)
+	ps := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		db.Address, db.Port, db.UserName, db.Password, db.DBName)
 
 	db.dbConn, err = sql.Open("pgx", ps)
 	if err != nil {
