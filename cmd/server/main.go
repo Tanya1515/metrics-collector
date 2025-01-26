@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
@@ -54,7 +55,13 @@ func main() {
 	}
 
 	if postgreSQLAddress != "" {
-		Storage = &psql.PostgreSQLConnection{Address: postgreSQLAddress, UserName: "collector", Password: "password", DBName: "metrics_collector"}
+		postgreSQLAddrPaaswd := strings.Split(postgreSQLAddress, ":")
+		postgreSQLPasswd := "5432"
+		if len(postgreSQLAddrPaaswd) == 2 {
+			postgreSQLPasswd = postgreSQLAddrPaaswd[1]
+		}
+		postgreSQLAddr := postgreSQLAddrPaaswd[0]
+		Storage = &psql.PostgreSQLConnection{Address: postgreSQLAddr, Port: postgreSQLPasswd, UserName: "collector", Password: "password", DBName: "metrics_collector"}
 
 	} else {
 		Storage = &str.MemStorage{}
