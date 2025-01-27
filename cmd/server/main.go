@@ -16,23 +16,11 @@ import (
 	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
 )
 
-type ResultMetrics struct {
-	GaugeMetrics   string
-	CounterMetrics string
-}
-
 type Application struct {
 	Storage   storage.RepositoryInterface
 	Logger    zap.SugaredLogger
 	Backup    bool
 	FileStore string
-}
-
-type Metrics struct {
-	ID    string   `json:"id"`
-	MType string   `json:"type"`
-	Delta *int64   `json:"delta,omitempty"`
-	Value *float64 `json:"value,omitempty"`
 }
 
 var (
@@ -139,6 +127,7 @@ func main() {
 		r.Post("/update/{metricType}/{metricName}/{metricValue}", App.UpdateValuePath())
 		r.Post("/value/", App.GetMetric())
 		r.Post("/update/", App.UpdateValue())
+		r.Post("/updates/", App.UpdateAllValues())
 		r.Get("/ping", App.CheckStorageConnection())
 	})
 

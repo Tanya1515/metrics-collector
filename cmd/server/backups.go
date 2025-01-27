@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"time"
+
+	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 )
 
 func (App *Application) Store() error {
@@ -24,10 +26,10 @@ func (App *Application) Store() error {
 			return scanner.Err()
 		}
 
-		data := scanner.Bytes()
+		dataBackup := scanner.Bytes()
 
-		metric := Metrics{}
-		err = json.Unmarshal(data, &metric)
+		metric := data.Metrics{}
+		err = json.Unmarshal(dataBackup, &metric)
 		if err != nil {
 			App.Logger.Errorln("Error while metric deserialization: ", err)
 			return err
@@ -51,8 +53,8 @@ func (App *Application) Store() error {
 
 func (App *Application) SaveMetrics(timer time.Duration) {
 
-	gaugeMetric := Metrics{ID: "", MType: "gauge"}
-	counterMetric := Metrics{ID: "", MType: "counter"}
+	gaugeMetric := data.Metrics{ID: "", MType: "gauge"}
+	counterMetric := data.Metrics{ID: "", MType: "counter"}
 	for {
 		App.Logger.Infoln("Write data to backup file")
 		file, err := os.OpenFile(App.FileStore, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
