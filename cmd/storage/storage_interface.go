@@ -2,6 +2,8 @@ package storage
 
 import (
 	"context"
+
+	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 )
 
 type RepositoryInterface interface {
@@ -25,4 +27,6 @@ type RepositoryInterface interface {
 
 	// return all counter metrics
 	GetAllCounterMetrics() (map[string]int64, error)
+
+	RepositoryAddAllValues(metrics []data.Metrics) error
 }
