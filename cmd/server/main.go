@@ -14,23 +14,9 @@ import (
 	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
 )
 
-type ResultMetrics struct {
-	GaugeMetrics   string
-	CounterMetrics string
-}
-
 type Application struct {
-	Storage   storage.RepositoryInterface
-	Logger    zap.SugaredLogger
-	Backup    bool
-	FileStore string
-}
-
-type Metrics struct {
-	ID    string   `json:"id"`
-	MType string   `json:"type"`
-	Delta *int64   `json:"delta,omitempty"`
-	Value *float64 `json:"value,omitempty"`
+	Storage storage.RepositoryInterface
+	Logger  zap.SugaredLogger
 }
 
 var (
@@ -39,6 +25,8 @@ var (
 	fileStorePathFlag *string
 	restoreFlag       *bool
 )
+
+// при синхронной записи сбрасывается значение PollCount
 
 func init() {
 	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
@@ -58,11 +46,6 @@ func main() {
 	}
 
 	Storage = &str.MemStorage{}
-
-	err := Storage.Init()
-	if err != nil {
-		panic(err)
-	}
 
 	logger, err := zap.NewDevelopment()
 	if err != nil {
@@ -89,9 +72,9 @@ func main() {
 		}
 	}
 
-	App.FileStore, envExists = os.LookupEnv("FILE_STORAGE_PATH")
+	fileStore, envExists := os.LookupEnv("FILE_STORAGE_PATH")
 	if !(envExists) {
-		App.FileStore = *fileStorePathFlag
+		fileStore = *fileStorePathFlag
 	}
 
 	restoreEnv, envExists := os.LookupEnv("RESTORE")
@@ -103,15 +86,12 @@ func main() {
 			App.Logger.Errorln("Error when converting string to bool: %s", err)
 		}
 	}
-	if restore && (App.FileStore != "") {
-		App.Store()
+
+	err = Storage.Init(restore, fileStore, time.Duration(storeInterval))
+	if err != nil {
+		panic(err)
 	}
 
-	if (storeInterval != 0) && (App.FileStore != "") {
-		go App.SaveMetrics(time.Duration(storeInterval))
-	} else if (storeInterval == 0) && (App.FileStore != "") {
-		App.Backup = true
-	}
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", App.HTMLMetrics())
