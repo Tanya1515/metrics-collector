@@ -34,7 +34,6 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 			App.Logger.Errorln("Metric name was not found")
 			return
 		}
-		metricData.ID = metricName
 
 		if metricType == "counter" {
 			metricData.MType = "counter"
@@ -45,7 +44,6 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 				return
 			}
 			App.Storage.RepositoryAddCounterValue(metricName, metricValueInt64)
-			metricData.Delta = &metricValueInt64
 		}
 		if metricType == "gauge" {
 			metricData.MType = "gauge"
@@ -56,7 +54,6 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 				return
 			}
 			App.Storage.RepositoryAddGaugeValue(metricName, metricValueFloat64)
-			metricData.Value = &metricValueFloat64
 		}
 
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
