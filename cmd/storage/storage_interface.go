@@ -2,16 +2,16 @@ package storage
 
 import (
 	"context"
+	"time"
 )
 
 type RepositoryInterface interface {
-
-	Init() (error)
-	// add metric name and value 
+	Init(restore bool, fileStore string, backupTime time.Duration) error
+	// add metric name and value
 	RepositoryAddCounterValue(metricName string, metricValue int64)
 	RepositoryAddGaugeValue(metricName string, metricValue float64)
 
-	// add value 
+	// add value
 	RepositoryAddValue(metricName string, metricValue int64)
 
 	// get metric value by name
@@ -19,11 +19,11 @@ type RepositoryInterface interface {
 	GetGaugeValueByName(metricName string) (float64, error)
 
 	// check repository availability
-	CheckConnection(ctx context.Context) (error)
+	CheckConnection(ctx context.Context) error
 
 	// return all gauge metrics
-	GetAllGaugeMetrics() (map[string]float64)
+	GetAllGaugeMetrics() map[string]float64
 
 	// return all counter metrics
-	GetAllCounterMetrics() (map[string]int64)
+	GetAllCounterMetrics() map[string]int64
 }

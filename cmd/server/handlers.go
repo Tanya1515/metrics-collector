@@ -7,16 +7,17 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+
+	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 )
 
 func (App *Application) UpdateValuePath() http.HandlerFunc {
 	updateValuefunc := func(rw http.ResponseWriter, r *http.Request) {
-		var metricData Metrics
+		var metricData data.Metrics
 
 		metricType := chi.URLParam(r, "metricType")
 		metricName := chi.URLParam(r, "metricName")
@@ -58,33 +59,6 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 			metricData.Value = &metricValueFloat64
 		}
 
-		metricDataBytes, err := json.Marshal(metricData)
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			App.Logger.Errorln("Error during serialization")
-		}
-
-		if App.Backup {
-			file, err := os.OpenFile(App.FileStore, os.O_WRONLY|os.O_CREATE, 0666)
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				App.Logger.Errorln("Error while openning file for backup")
-			}
-
-			defer file.Close()
-
-			_, err = file.Write(metricDataBytes)
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				App.Logger.Errorln("Error while writting data for backup")
-			}
-			_, err = file.WriteString("\n")
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				App.Logger.Errorln("Error while writting line transition: %s", err)
-			}
-		}
-
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		rw.WriteHeader(http.StatusOK)
 
@@ -97,7 +71,7 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 
 func (App *Application) UpdateValue() http.HandlerFunc {
 	updateValuefunc := func(rw http.ResponseWriter, r *http.Request) {
-		var metricData Metrics
+		var metricData data.Metrics
 		var buf bytes.Buffer
 		var err error
 
@@ -158,27 +132,6 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 			App.Logger.Errorln("Error during serialization")
 		}
 
-		if App.Backup {
-			file, err := os.OpenFile(App.FileStore, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				App.Logger.Errorln("Error while openning file for backup")
-			}
-
-			defer file.Close()
-
-			_, err = file.Write(metricDataBytes)
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				App.Logger.Errorln("Error while writting data for backup")
-			}
-			_, err = file.WriteString("\n")
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				App.Logger.Errorln("Error while writting line transition: %s", err)
-			}
-		}
-
 		rw.Write(metricDataBytes)
 
 	}
@@ -208,7 +161,7 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 		}
 		counterResult := builder.String()
 
-		res := ResultMetrics{GaugeMetrics: gaugeResult, CounterMetrics: counterResult}
+		res := data.ResultMetrics{GaugeMetrics: gaugeResult, CounterMetrics: counterResult}
 		tmpl := template.Must(template.New("template").Parse(`
 Counter metrics: 
 
@@ -272,7 +225,7 @@ func (App *Application) GetMetricPath() http.HandlerFunc {
 
 func (App *Application) GetMetric() http.HandlerFunc {
 	getMetricfunc := func(rw http.ResponseWriter, r *http.Request) {
-		metricData := Metrics{}
+		metricData := data.Metrics{}
 
 		var buf bytes.Buffer
 		_, err := buf.ReadFrom(r.Body)

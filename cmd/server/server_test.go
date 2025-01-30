@@ -16,6 +16,8 @@ import (
 	"go.uber.org/zap"
 
 	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
+	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
+
 )
 
 func TestProcessRequest(t *testing.T) {
@@ -110,7 +112,7 @@ func TestProcessRequest(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run("Test:", func(t *testing.T) {
-			err := test.storage.Init()
+			err := test.storage.Init(false, "", 0)
 			if err != nil {
 				panic(err)
 			}
@@ -174,7 +176,7 @@ func TestUpdateValue(t *testing.T) {
 	tests := []struct {
 		name    string
 		request string
-		metric  *Metrics
+		metric  *data.Metrics
 		storage *str.MemStorage
 		result  httpResult
 		modify  string
@@ -182,7 +184,7 @@ func TestUpdateValue(t *testing.T) {
 		{
 			name:    "test: Send correct counter value",
 			request: "/update/",
-			metric:  &Metrics{ID: "value", MType: "counter", Delta: &counterMetrciValue},
+			metric:  &data.Metrics{ID: "value", MType: "counter", Delta: &counterMetrciValue},
 			storage: &str.MemStorage{},
 			result: httpResult{
 				code:        200,
@@ -194,7 +196,7 @@ func TestUpdateValue(t *testing.T) {
 		{
 			name:    "test: Send correct gauge value",
 			request: "/update/",
-			metric:  &Metrics{ID: "value", MType: "gauge", Value: &gaugeMetricValue},
+			metric:  &data.Metrics{ID: "value", MType: "gauge", Value: &gaugeMetricValue},
 			storage: &str.MemStorage{},
 			result: httpResult{
 				code:        200,
@@ -206,7 +208,7 @@ func TestUpdateValue(t *testing.T) {
 		{
 			name:    "test: Send incorrect metric type",
 			request: "/update/",
-			metric:  &Metrics{ID: "value", MType: "test", Delta: &counterMetrciValue},
+			metric:  &data.Metrics{ID: "value", MType: "test", Delta: &counterMetrciValue},
 			storage: &str.MemStorage{},
 			result: httpResult{
 				code:        400,
@@ -218,7 +220,7 @@ func TestUpdateValue(t *testing.T) {
 		{
 			name:    "test: Send none metric name",
 			request: "/update/",
-			metric:  &Metrics{ID: "", MType: "counter", Delta: &counterMetrciValue},
+			metric:  &data.Metrics{ID: "", MType: "counter", Delta: &counterMetrciValue},
 			storage: &str.MemStorage{},
 			result: httpResult{
 				code:        404,
@@ -231,7 +233,7 @@ func TestUpdateValue(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run("Test:", func(t *testing.T) {
-			err := test.storage.Init()
+			err := test.storage.Init(false, "", 0)
 			if err != nil {
 				panic(err)
 			}
@@ -290,14 +292,14 @@ func TestGetMetric(t *testing.T) {
 	tests := []struct {
 		name    string
 		request string
-		metric  *Metrics
+		metric  *data.Metrics
 		storage *str.MemStorage
 		result  httpResult
 	}{
 		{
 			name:    "test: Send incorrect metric type",
 			request: "/value/",
-			metric:  &Metrics{ID: "PollCount", MType: "test"},
+			metric:  &data.Metrics{ID: "PollCount", MType: "test"},
 			storage: &str.MemStorage{},
 			result: httpResult{
 				code:        400,
@@ -308,7 +310,7 @@ func TestGetMetric(t *testing.T) {
 		{
 			name:    "test: Get correct counter metric",
 			request: "/value/",
-			metric:  &Metrics{ID: "PollCount", MType: "counter"},
+			metric:  &data.Metrics{ID: "PollCount", MType: "counter"},
 			storage: &str.MemStorage{},
 			result: httpResult{
 				code:        200,
@@ -319,7 +321,7 @@ func TestGetMetric(t *testing.T) {
 		{
 			name:    "test: Get correct gauge metric",
 			request: "/value/",
-			metric:  &Metrics{ID: "BuckHashSys", MType: "gauge"},
+			metric:  &data.Metrics{ID: "BuckHashSys", MType: "gauge"},
 			storage: &str.MemStorage{},
 			result: httpResult{
 				code:        200,
@@ -330,7 +332,7 @@ func TestGetMetric(t *testing.T) {
 		{
 			name:    "test: Get not existing gauge metric",
 			request: "/value/",
-			metric:  &Metrics{ID: "GaugeTest", MType: "gauge"},
+			metric:  &data.Metrics{ID: "GaugeTest", MType: "gauge"},
 			storage: &str.MemStorage{},
 			result: httpResult{
 				code:        404,
@@ -341,7 +343,7 @@ func TestGetMetric(t *testing.T) {
 		{
 			name:    "test: Get not existing counter metric",
 			request: "/value/",
-			metric:  &Metrics{ID: "PollCountEx", MType: "counter"},
+			metric:  &data.Metrics{ID: "PollCountEx", MType: "counter"},
 			storage: &str.MemStorage{},
 			result: httpResult{
 				code:        404,
@@ -352,7 +354,7 @@ func TestGetMetric(t *testing.T) {
 		{
 			name:    "test: Get request without metric name",
 			request: "/value/",
-			metric:  &Metrics{ID: "", MType: "counter"},
+			metric:  &data.Metrics{ID: "", MType: "counter"},
 			storage: &str.MemStorage{},
 			result: httpResult{
 				code:        404,
@@ -364,7 +366,7 @@ func TestGetMetric(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run("Test:", func(t *testing.T) {
-			err := test.storage.Init()
+			err := test.storage.Init(false, "", 0)
 			if err != nil {
 				panic(err)
 			}

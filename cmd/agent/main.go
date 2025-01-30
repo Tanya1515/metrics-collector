@@ -73,12 +73,13 @@ func CheckValue(fieldName string) bool {
 	return false
 }
 
+//Alternative variant of structure processing:  variable := float64(memStats.Alloc)
 func GetMetrics(mapMetrics *map[string]interface{}, PollCount *int64, timer time.Duration, mutex *sync.RWMutex) {
 	var memStats runtime.MemStats
 	for {
 		runtime.ReadMemStats(&memStats)
 		val := reflect.ValueOf(memStats)
-
+		
 		mutex.Lock()
 		for fieldIndex := 0; fieldIndex < val.NumField(); fieldIndex++ {
 			field := val.Field(fieldIndex)

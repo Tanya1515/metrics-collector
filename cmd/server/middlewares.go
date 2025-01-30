@@ -22,7 +22,7 @@ func (App *Application) WithLoggerZipper(h http.Handler) http.HandlerFunc {
 			w,
 			responseData,
 		}
-		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") && (strings.Contains(r.Header.Get("Accept"), "application/json") || strings.Contains(r.Header.Get("Accept"), "text/html") || strings.Contains(r.Header.Get("Accept"), "text/plain")) {
+		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
 			gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -41,7 +41,6 @@ func (App *Application) WithLoggerZipper(h http.Handler) http.HandlerFunc {
 		start := time.Now()
 
 		h.ServeHTTP(&zlw, r)
-
 		duration := time.Since(start)
 
 		App.Logger.Infoln(
