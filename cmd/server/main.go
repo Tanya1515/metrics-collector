@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"time"
+	"fmt"
 
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
@@ -103,6 +104,7 @@ func main() {
 
 	err = http.ListenAndServe(serverAddress, App.WithLoggerZipper(r))
 	if err != nil {
+		fmt.Println(err)
 		App.Logger.Fatalw(err.Error(), "event", "start server")
 	}
 }
