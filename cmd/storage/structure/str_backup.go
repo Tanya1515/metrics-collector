@@ -61,6 +61,14 @@ func (S *MemStorage) SaveMetrics() (err error) {
 func (S *MemStorage) Store() error {
 	allMetrics := make([]data.Metrics, len(S.counterStorage)+len(S.gaugeStorage))
 
+	_, err := os.Stat(S.fileStore)
+	if errors.Is(err, os.ErrNotExist) {
+		_, err = os.Create(S.fileStore)
+		if err != nil {
+			return err
+		}
+	}
+
 	dataFromFile, err := os.ReadFile(S.fileStore)
 	if err != nil {
 		return err
