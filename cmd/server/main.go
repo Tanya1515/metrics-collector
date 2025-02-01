@@ -90,7 +90,7 @@ func main() {
 
 	err = Storage.Init(restore, fileStore, time.Duration(storeInterval))
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
 	}
 
 	r := chi.NewRouter()
