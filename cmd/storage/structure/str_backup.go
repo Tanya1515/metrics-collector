@@ -2,6 +2,7 @@ package storage
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"time"
 
@@ -40,6 +41,14 @@ func (S *MemStorage) SaveMetrics() (err error) {
 	metricsBytes, err := json.Marshal(allMetrics)
 	if err != nil {
 		return
+	}
+
+	_, err = os.Stat(S.fileStore)
+	if errors.Is(err, os.ErrNotExist) {
+		_, err = os.Create(S.fileStore)
+		if err != nil {
+			return err
+		}
 	}
 	err = os.WriteFile(S.fileStore, metricsBytes, 0644)
 	if err != nil {
