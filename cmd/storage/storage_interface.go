@@ -2,11 +2,10 @@ package storage
 
 import (
 	"context"
-	"time"
 )
 
 type RepositoryInterface interface {
-	Init(restore bool, fileStore string, backupTime time.Duration) error
+	Init(restore bool, fileStore string, backupTime int) error
 	// add metric name and value
 	RepositoryAddCounterValue(metricName string, metricValue int64)
 	RepositoryAddGaugeValue(metricName string, metricValue float64)

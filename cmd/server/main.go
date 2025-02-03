@@ -2,11 +2,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
-	"time"
-	"fmt"
 
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
@@ -88,7 +87,7 @@ func main() {
 		}
 	}
 
-	err = Storage.Init(restore, fileStore, time.Duration(storeInterval))
+	err = Storage.Init(restore, fileStore, storeInterval)
 	if err != nil {
 		fmt.Println(err)
 	}

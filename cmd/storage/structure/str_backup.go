@@ -13,7 +13,7 @@ func (S *MemStorage) SaveMetricsAsync() {
 
 	for {
 		S.SaveMetrics()
-		time.Sleep(S.backupTimer * time.Second)
+		time.Sleep(time.Duration(S.backupTimer) * time.Second)
 	}
 }
 
@@ -43,13 +43,6 @@ func (S *MemStorage) SaveMetrics() (err error) {
 		return
 	}
 
-	_, err = os.Stat(S.fileStore)
-	if errors.Is(err, os.ErrNotExist) {
-		_, err = os.Create(S.fileStore)
-		if err != nil {
-			return err
-		}
-	}
 	err = os.WriteFile(S.fileStore, metricsBytes, 0644)
 	if err != nil {
 		return

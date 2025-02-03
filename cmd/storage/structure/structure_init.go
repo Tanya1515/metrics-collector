@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/pkg/errors"
 )
@@ -14,11 +13,11 @@ type MemStorage struct {
 	counterStorage map[string]int64
 	gaugeStorage   map[string]float64
 	mutex          *sync.Mutex
-	backupTimer    time.Duration
+	backupTimer    int
 	fileStore      string
 }
 
-func (S *MemStorage) Init(restore bool, fileStore string, backupTimer time.Duration) error {
+func (S *MemStorage) Init(restore bool, fileStore string, backupTimer int) error {
 	var mutex sync.Mutex
 	S.counterStorage = make(map[string]int64, 100)
 	S.gaugeStorage = make(map[string]float64, 100)
@@ -28,9 +27,13 @@ func (S *MemStorage) Init(restore bool, fileStore string, backupTimer time.Durat
 
 	if restore {
 		err := S.Store()
-		return err
+		if err != nil {
+			return err
+		}
 	}
+
 	if (S.fileStore != "") && (S.backupTimer != 0) {
+
 		go S.SaveMetricsAsync()
 	}
 	return nil
