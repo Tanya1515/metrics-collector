@@ -59,7 +59,7 @@ func main() {
 	} else {
 		Storage = &str.MemStorage{}
 	}
-	
+
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		panic(err)
@@ -73,6 +73,7 @@ func main() {
 		"Starting server",
 		"addr", serverAddress,
 	)
+
 	storeInterval := 300
 	restore := true
 	storeIntervalEnv, envExists := os.LookupEnv("STORE_INTERVAL")
