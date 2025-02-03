@@ -17,6 +17,10 @@ type PostgreSQLConnection struct {
 	dbConn   *sql.DB
 }
 
+const (
+	MetricsTableName = "metrics"
+)
+
 func (db *PostgreSQLConnection) Init(restore bool, fileStore string, backupTimer int) error {
 	var err error
 	ps := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
