@@ -3,157 +3,107 @@ package main
 import (
 	"flag"
 	"fmt"
-	"html/template"
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
-	"sync"
 
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
+
+	storage "github.com/Tanya1515/metrics-collector.git/cmd/storage"
+	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
 )
 
-type ResultMetrics struct {
-	GaugeMetrics   string
-	CounterMetrics string
-}
-
 type Application struct {
-	Storage *MemStorage
+	Storage storage.RepositoryInterface
+	Logger  zap.SugaredLogger
 }
 
-func (App *Application) ProcessRequest() http.HandlerFunc {
+var (
+	serverAddressFlag *string
+	storeIntervalFlag *int
+	fileStorePathFlag *string
+	restoreFlag       *bool
+)
 
-	return func(rw http.ResponseWriter, r *http.Request) {
+// при синхронной записи сбрасывается значение PollCount
 
-		metricType := chi.URLParam(r, "metricType")
-		metricName := chi.URLParam(r, "metricName")
-		metricValue := chi.URLParam(r, "metricValue")
-
-		if (metricType != "counter") && (metricType != "gauge") {
-			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metricType), http.StatusBadRequest)
-			return
-		}
-
-		if metricName == "" {
-			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
-			return
-		}
-		if metricType == "counter" {
-			metricValueInt64, err := strconv.ParseInt(metricValue, 10, 64)
-			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metricValue), http.StatusBadRequest)
-				return
-			}
-			App.Storage.RepositoryAddCounterValue(metricName, metricValueInt64)
-		}
-		if metricType == "gauge" {
-			metricValueFloat64, err := strconv.ParseFloat(metricValue, 64)
-			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 400: Invalid metric value: %s", metricValue), http.StatusBadRequest)
-				return
-			}
-			App.Storage.RepositoryAddGaugeValue(metricName, metricValueFloat64)
-		}
-
-		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		rw.WriteHeader(http.StatusOK)
-
-		rw.Write([]byte("Succesfully edit!"))
-
-	}
-}
-
-func (App *Application) HTMLMetrics() http.HandlerFunc {
-	return func(rw http.ResponseWriter, r *http.Request) {
-		builder := strings.Builder{}
-		for key, value := range App.Storage.GaugeStorage {
-			builder.WriteString(key)
-			builder.WriteString(": ")
-			builder.WriteString(strconv.FormatFloat(value, 'f', -1, 64))
-			builder.WriteString(" \n")
-		}
-		gaugeResult := builder.String()
-
-		builder = strings.Builder{}
-		for key, value := range App.Storage.CounterStorage {
-			builder.WriteString(key)
-			builder.WriteString(": ")
-			builder.WriteString(strconv.FormatInt(value, 10))
-			builder.WriteString(" \n")
-		}
-		counterResult := builder.String()
-
-		res := ResultMetrics{GaugeMetrics: gaugeResult, CounterMetrics: counterResult}
-		t, err := template.ParseFiles("./html/metrics.html")
-		if err != nil {
-			http.Error(rw, "Error 500: error while processing html page", http.StatusInternalServerError)
-		}
-		t.Execute(rw, res)
-	}
-}
-
-func (App *Application) GetMetric() http.HandlerFunc {
-	return func(rw http.ResponseWriter, r *http.Request) {
-		metricType := chi.URLParam(r, "metricType")
-		metricName := chi.URLParam(r, "metricName")
-
-		if metricName == "" {
-			http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
-			return
-		}
-		metricRes := ""
-
-		if metricType == "counter" {
-			metricValue, err := App.Storage.GetCounterValueByName(metricName)
-			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
-				return
-			}
-			builder := strings.Builder{}
-			builder.WriteString(strconv.FormatInt(metricValue, 10))
-			metricRes = builder.String()
-		} else if metricType == "gauge" {
-			metricValue, err := App.Storage.GetGaugeValueByName(metricName)
-			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
-				return
-			}
-			metricRes = strconv.FormatFloat(metricValue, 'f', -1, 64)
-		} else {
-			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metricType), http.StatusBadRequest)
-			return
-		}
-
-		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		rw.WriteHeader(http.StatusOK)
-		rw.Write([]byte(metricRes))
-
-	}
+func init() {
+	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
+	storeIntervalFlag = flag.Int("i", 300, "time duration for saving metrics")
+	fileStorePathFlag = flag.String("f", "/tmp/metrics-db.json", "filename for storing metrics")
+	restoreFlag = flag.Bool("r", true, "store all info")
 }
 
 func main() {
-	var mutex sync.Mutex
-	var Storage = &MemStorage{CounterStorage: make(map[string]int64, 100), GaugeStorage: make(map[string]float64, 100), mutex: &mutex}
-	App := Application{Storage: Storage}
-	serverAddressFlag := flag.String("a", "localhost:8080", "server address")
+	var Storage storage.RepositoryInterface
 
 	flag.Parse()
-
-	r := chi.NewRouter()
-	r.Route("/", func(r chi.Router) {
-		r.Get("/", App.HTMLMetrics())
-		r.Get("/value/{metricType}/{metricName}", App.GetMetric())
-		r.Post("/update/{metricType}/{metricName}/{metricValue}", App.ProcessRequest())
-	})
 
 	serverAddress, envExists := os.LookupEnv("ADDRESS")
 	if !(envExists) {
 		serverAddress = *serverAddressFlag
 	}
-	fmt.Printf("Start server on address %s\n", serverAddress)
-	err := http.ListenAndServe(serverAddress, r)
+
+	Storage = &str.MemStorage{}
+
+	logger, err := zap.NewDevelopment()
 	if err != nil {
 		panic(err)
+	}
+
+	defer logger.Sync()
+
+	App := Application{Storage: Storage, Logger: *logger.Sugar()}
+
+	App.Logger.Infow(
+		"Starting server",
+		"addr", serverAddress,
+	)
+	storeInterval := 300
+	restore := true
+	storeIntervalEnv, envExists := os.LookupEnv("STORE_INTERVAL")
+	if !(envExists) {
+		storeInterval = *storeIntervalFlag
+	} else {
+		storeInterval, err = strconv.Atoi(storeIntervalEnv)
+		if err != nil {
+			App.Logger.Errorln("Error when converting string to int: %v", err)
+		}
+	}
+
+	fileStore, envExists := os.LookupEnv("FILE_STORAGE_PATH")
+	if !(envExists) {
+		fileStore = *fileStorePathFlag
+	}
+
+	restoreEnv, envExists := os.LookupEnv("RESTORE")
+	if !(envExists) {
+		restore = *restoreFlag
+	} else {
+		restore, err = strconv.ParseBool(restoreEnv)
+		if err != nil {
+			App.Logger.Errorln("Error when converting string to bool: %s", err)
+		}
+	}
+
+	err = Storage.Init(restore, fileStore, storeInterval)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	r := chi.NewRouter()
+	r.Route("/", func(r chi.Router) {
+		r.Get("/", App.HTMLMetrics())
+		r.Get("/value/{metricType}/{metricName}", App.GetMetricPath())
+		r.Post("/update/{metricType}/{metricName}/{metricValue}", App.UpdateValuePath())
+		r.Post("/value/", App.GetMetric())
+		r.Post("/update/", App.UpdateValue())
+	})
+
+	err = http.ListenAndServe(serverAddress, App.WithLoggerZipper(r))
+	if err != nil {
+		fmt.Println(err)
+		App.Logger.Fatalw(err.Error(), "event", "start server")
 	}
 }

@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -27,6 +30,38 @@ func init() {
 	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
 }
 
+type Metrics struct {
+	ID    string   `json:"id"`
+	MType string   `json:"type"`
+	Delta *int64   `json:"delta,omitempty"`
+	Value *float64 `json:"value,omitempty"`
+}
+
+func (metricData *Metrics) Compress() ([]byte, error) {
+	var b bytes.Buffer
+
+	w, err := gzip.NewWriterLevel(&b, gzip.BestCompression)
+	if err != nil {
+		return nil, fmt.Errorf("failed init compress writer: %v", err)
+	}
+
+	metricDataBytes, err := json.Marshal(metricData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compress data: %v", err)
+	}
+	_, err = w.Write(metricDataBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed write data to compress temporary buffer: %v", err)
+	}
+
+	err = w.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed compress data: %v", err)
+	}
+
+	return b.Bytes(), nil
+}
+
 func CheckValue(fieldName string) bool {
 	gaugeMetrics := [...]string{"Alloc", "BuckHashSys", "Frees", "GCCPUFraction", "GCSys", "HeapAlloc", "HeapIdle", "HeapInuse", "HeapInuse", "HeapObjects", "HeapReleased", "HeapSys", "LastGC", "Lookups", "MCacheInuse", "MCacheSys", "MSpanInuse", "MSpanSys", "Mallocs", "NextGC", "NumForcedGC", "NumGC", "OtherSys", "PauseTotalNs", "StackInuse", "StackSys", "Sys", "TotalAlloc"}
 
@@ -38,12 +73,13 @@ func CheckValue(fieldName string) bool {
 	return false
 }
 
-func GetMetrics(mapMetrics *map[string]interface{}, PollCount *int, timer time.Duration, mutex *sync.RWMutex) {
+//Alternative variant of structure processing:  variable := float64(memStats.Alloc)
+func GetMetrics(mapMetrics *map[string]interface{}, PollCount *int64, timer time.Duration, mutex *sync.RWMutex) {
 	var memStats runtime.MemStats
 	for {
 		runtime.ReadMemStats(&memStats)
 		val := reflect.ValueOf(memStats)
-
+		
 		mutex.Lock()
 		for fieldIndex := 0; fieldIndex < val.NumField(); fieldIndex++ {
 			field := val.Field(fieldIndex)
@@ -59,40 +95,23 @@ func GetMetrics(mapMetrics *map[string]interface{}, PollCount *int, timer time.D
 	}
 }
 
-func MakeString(serverAddress, metricName, metricValue, metricType string) string {
+func MakeString(serverAddress string) string {
 	builder := strings.Builder{}
-
-	if metricType == "gauge" {
-		builder.WriteString("http://")
-		builder.WriteString(serverAddress)
-		builder.WriteString("/update/gauge/")
-		builder.WriteString(metricName)
-		builder.WriteString("/")
-		builder.WriteString(metricValue)
-	}
-
-	if metricType == "counter" {
-		builder.WriteString("http://")
-		builder.WriteString(serverAddress)
-		builder.WriteString("/update/counter/")
-		builder.WriteString(metricName)
-		builder.WriteString("/")
-		builder.WriteString(metricValue)
-	}
+	builder.WriteString("http://")
+	builder.WriteString(serverAddress)
+	builder.WriteString("/update/")
 
 	return builder.String()
 }
 
 func main() {
-
-	fmt.Println("Start agent")
 	var err error
+	fmt.Println("Start agent for collecting metrics")
 	mapMetrics := make(map[string]interface{}, 20)
-	PollCount := 0
+	var PollCount int64
+	var mutex sync.RWMutex
 
 	client := resty.New()
-
-	var mutex sync.RWMutex
 
 	flag.Parse()
 
@@ -119,32 +138,48 @@ func main() {
 		}
 	}
 
+	requestString := MakeString(serverAddress)
+	var metricValueF64 float64
 	go GetMetrics(&mapMetrics, &PollCount, time.Duration(pollInt), &mutex)
 
 	for {
 		time.Sleep(time.Duration(reportInt) * time.Second)
 		mutex.RLock()
+
 		for metricName, metricValue := range mapMetrics {
-			metricValueStr := fmt.Sprint(metricValue)
-			requestString := MakeString(serverAddress, metricName, metricValueStr, "gauge")
-			fmt.Printf("Send request %s to address %s for gauge metric with name %s with value %v \n", requestString, serverAddress, metricName, metricValueStr)
-			_, err := client.R().
-				SetHeader("Content-Type", "text/plain").
+			metricData := Metrics{}
+			metricData.ID = metricName
+			metricData.MType = "gauge"
+			metricValueF64, err = strconv.ParseFloat(fmt.Sprint(metricValue), 64)
+			if err != nil {
+				fmt.Printf("Error while parsing metric %s: %s", metricName, err)
+			}
+			metricData.Value = &metricValueF64
+			compressedMetric, err := metricData.Compress()
+			if err != nil {
+				fmt.Println(err)
+			}
+			_, err = client.R().
+				SetHeader("Content-Type", "application/json").
+				SetHeader("Content-Encoding", "gzip").
+				SetHeader("Accept-Encoding", "gzip").
+				SetBody(compressedMetric).
 				Post(requestString)
 			if err != nil {
 				fmt.Printf("Error while sending metric %s: %s\n", metricName, err)
 			}
-
 		}
-		requestString := MakeString(serverAddress, "PollCount", fmt.Sprint(PollCount), "counter")
-		fmt.Printf("Send request %s to address %s for counter metric with name %s with value %v \n", requestString, serverAddress, "PollCount", fmt.Sprint(PollCount))
+		metricData := Metrics{}
+		metricData.ID = "PollCount"
+		metricData.MType = "counter"
+		metricData.Delta = &PollCount
 		_, err = client.R().
-			SetHeader("Content-Type", "text/plain").
+			SetHeader("Content-Type", "application/json").
+			SetBody(metricData).
 			Post(requestString)
 		if err != nil {
-			fmt.Printf("Error while sending PollCounter for metric %s: %s\n", "PollCount", err)
-		}
-		if err == nil {
+			fmt.Printf("Error while sending PollCounter for metric PollCount: %s", err)
+		} else {
 			PollCount = 0
 		}
 
