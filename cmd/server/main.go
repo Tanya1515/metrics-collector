@@ -14,6 +14,8 @@ import (
 	storage "github.com/Tanya1515/metrics-collector.git/cmd/storage"
 	psql "github.com/Tanya1515/metrics-collector.git/cmd/storage/postgresql"
 	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
+
+	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 )
 
 type Application struct {
@@ -113,18 +115,23 @@ func main() {
 		fmt.Println(err)
 	}
 
+	commonMiddlewares := []data.Middleware{
+		App.MiddlewareZipper,
+		App.MiddlewareLogger,
+	}
+
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
-		r.Get("/", App.HTMLMetrics())
-		r.Get("/value/{metricType}/{metricName}", App.GetMetricPath())
-		r.Post("/update/{metricType}/{metricName}/{metricValue}", App.UpdateValuePath())
-		r.Post("/value/", App.GetMetric())
-		r.Post("/update/", App.UpdateValue())
-		r.Post("/updates/", App.UpdateAllValues())
-		r.Get("/ping", App.CheckStorageConnection())
+		r.Get("/", App.MiddlewareChain(App.HTMLMetrics(), commonMiddlewares...))
+		r.Get("/value/{metricType}/{metricName}", App.MiddlewareChain(App.GetMetricPath(), commonMiddlewares...))
+		r.Post("/update/{metricType}/{metricName}/{metricValue}", App.MiddlewareChain(App.UpdateValuePath(), commonMiddlewares...))
+		r.Post("/value/", App.MiddlewareChain(App.GetMetric(), commonMiddlewares...))
+		r.Post("/update/", App.MiddlewareChain(App.UpdateValue(), commonMiddlewares...))
+		r.Post("/updates/", App.MiddlewareChain(App.UpdateAllValues(), commonMiddlewares...))
+		r.Get("/ping", App.MiddlewareChain(App.CheckStorageConnection(), commonMiddlewares...))
 	})
 
-	err = http.ListenAndServe(serverAddress, App.WithLoggerZipper(r))
+	err = http.ListenAndServe(serverAddress, r)
 	if err != nil {
 		fmt.Println(err)
 		App.Logger.Fatalw(err.Error(), "event", "start server")

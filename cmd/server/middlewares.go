@@ -5,13 +5,12 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 )
 
-func (App *Application) WithLoggerZipper(h http.Handler) http.HandlerFunc {
+func (App *Application) MiddlewareZipper(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		uri := r.RequestURI
-		method := r.Method
-
 		responseData := &ResponseData{
 			status: 0,
 			size:   0,
@@ -38,6 +37,27 @@ func (App *Application) WithLoggerZipper(h http.Handler) http.HandlerFunc {
 			}
 		}
 
+		next(&zlw, r)
+
+	}
+}
+
+func (App *Application) MiddlewareLogger(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		uri := r.RequestURI
+		method := r.Method
+
+		responseData := &ResponseData{
+			status: 0,
+			size:   0,
+		}
+
+		zlw := LoggingZipperResponseWriter{
+			w,
+			w,
+			responseData,
+		}
+
 		start := time.Now()
 
 		h.ServeHTTP(&zlw, r)
@@ -52,4 +72,14 @@ func (App *Application) WithLoggerZipper(h http.Handler) http.HandlerFunc {
 		)
 
 	}
+}
+
+// ... - variardic parameter, that can get any amount of parameters of type data.Middleware
+func (App *Application) MiddlewareChain(h http.HandlerFunc, m ...data.Middleware) http.HandlerFunc {
+
+	for _, wrap := range m {
+		h = wrap(h)
+	}
+
+	return h
 }

@@ -5,7 +5,10 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"net/http"
 )
+
+type Middleware func(http.HandlerFunc) http.HandlerFunc
 
 type ResultMetrics struct {
 	GaugeMetrics   string
