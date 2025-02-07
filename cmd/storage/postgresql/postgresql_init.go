@@ -23,8 +23,8 @@ const (
 
 func (db *PostgreSQLConnection) Init(restore bool, fileStore string, backupTimer int) error {
 	var err error
-	ps := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		db.Address, db.Port, db.UserName, db.Password, db.DBName)
+	ps := fmt.Sprintf("host=%s port=%s user=%s password=%s sslmode=disable",
+		db.Address, db.Port, db.UserName, db.Password)
 
 	db.dbConn, err = sql.Open("pgx", ps)
 	if err != nil {
