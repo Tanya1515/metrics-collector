@@ -57,13 +57,13 @@ func main() {
 	}
 
 	if postgreSQLAddress != "" {
-		postgreSQLAddrPaaswd := strings.Split(postgreSQLAddress, ":")
-		postgreSQLPasswd := "5432"
-		if len(postgreSQLAddrPaaswd) == 2 {
-			postgreSQLPasswd = postgreSQLAddrPaaswd[1]
+		postgreSQLAddrPort := strings.Split(postgreSQLAddress, ":")
+		postgreSQLPort := "5432"
+		if len(postgreSQLAddrPort) == 2 {
+			postgreSQLPort = postgreSQLAddrPort[1]
 		}
-		postgreSQLAddr := postgreSQLAddrPaaswd[0]
-		Storage = &psql.PostgreSQLConnection{Address: postgreSQLAddr, Port: postgreSQLPasswd, UserName: "collector", Password: "password", DBName: "metrics_collector"}
+		postgreSQLAddr := postgreSQLAddrPort[0]
+		Storage = &psql.PostgreSQLConnection{Address: postgreSQLAddr, Port: postgreSQLPort, UserName: "postgres"}
 
 	} else {
 		Storage = &str.MemStorage{}
