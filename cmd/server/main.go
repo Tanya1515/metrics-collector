@@ -63,7 +63,7 @@ func main() {
 			postgreSQLPort = postgreSQLAddrPort[1]
 		}
 		postgreSQLAddr := postgreSQLAddrPort[0]
-		Storage = &psql.PostgreSQLConnection{Address: postgreSQLAddr, Port: postgreSQLPort, UserName: "postgres"}
+		Storage = &psql.PostgreSQLConnection{Address: postgreSQLAddr, Port: postgreSQLPort, UserName: "postgres", Password: "postgres"}
 
 	} else {
 		Storage = &str.MemStorage{}
