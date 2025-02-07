@@ -32,15 +32,15 @@ func (db *PostgreSQLConnection) Init(restore bool, fileStore string, backupTimer
 		return err
 	}
 
-	_, err = db.dbConn.Exec("CREATE DATABASE metrics_collection;")
-	if (err != nil) && !(strings.Contains(err.Error(), "already exists")) {
-		return fmt.Errorf("error %w occured while creating database metrics_collection", err)
-	}
+	// _, err = db.dbConn.Exec("CREATE DATABASE metrics_collection;")
+	// if (err != nil) && !(strings.Contains(err.Error(), "already exists")) {
+	// 	return fmt.Errorf("error %w occured while creating database metrics_collection", err)
+	// }
 
-	_, err = db.dbConn.Exec("\\c metrics_collection;")
-	if err != nil {
-		return fmt.Errorf("error %w occured while using database metrics_collection", err)
-	}
+	// _, err = db.dbConn.Exec(" metrics_collection;")
+	// if err != nil {
+	// 	return fmt.Errorf("error %w occured while using database metrics_collection", err)
+	// }
 
 	_, err = db.dbConn.Exec(`CREATE TABLE ` + MetricsTableName + ` (Id BIGSERIAL PRIMARY KEY,
 	                                                                metricName VARCHAR(100) NOT NULL,
