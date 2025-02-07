@@ -33,7 +33,7 @@ func (db *PostgreSQLConnection) Init(restore bool, fileStore string, backupTimer
 	}
 
 	_, err = db.dbConn.Exec("CREATE DATABASE metrics_collection")
-	if (err != nil) && !(strings.Contains(err.Error(), "database already exists")) {
+	if (err != nil) && !(strings.Contains(err.Error(), "already exists")) {
 		return fmt.Errorf("error %w occured while creating database metrics_collection", err)
 	}
 
@@ -47,7 +47,7 @@ func (db *PostgreSQLConnection) Init(restore bool, fileStore string, backupTimer
 																	metricType VARCHAR(100) NOT NULL,
 																	Delta INTEGER, 
 																	Value DOUBLE PRECISION);`)
-	if (err != nil) && !(strings.Contains(err.Error(), "table already exists")) {
+	if (err != nil) && !(strings.Contains(err.Error(), "already exists")) {
 		return fmt.Errorf("error %w occured while creating table %s", err, MetricsTableName)
 	}
 
