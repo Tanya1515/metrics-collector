@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -32,7 +33,7 @@ func (db *PostgreSQLConnection) Init(restore bool, fileStore string, backupTimer
 	}
 
 	_, err = db.dbConn.Exec("CREATE DATABASE metrics_collection")
-	if err != nil {
+	if (err != nil) && !(strings.Contains(err.Error(), "database already exists")) {
 		return fmt.Errorf("error %w occured while creating database metrics_collection", err)
 	}
 
@@ -40,13 +41,13 @@ func (db *PostgreSQLConnection) Init(restore bool, fileStore string, backupTimer
 	if err != nil {
 		return fmt.Errorf("error %w occured while using database metrics_collection", err)
 	}
+
 	_, err = db.dbConn.Exec(`CREATE TABLE ` + MetricsTableName + ` (Id BIGSERIAL PRIMARY KEY,
 	                                                                metricName VARCHAR(100) NOT NULL,
 																	metricType VARCHAR(100) NOT NULL,
 																	Delta INTEGER, 
 																	Value DOUBLE PRECISION);`)
-
-	if err != nil {
+	if (err != nil) && !(strings.Contains(err.Error(), "table already exists")) {
 		return fmt.Errorf("error %w occured while creating table %s", err, MetricsTableName)
 	}
 
