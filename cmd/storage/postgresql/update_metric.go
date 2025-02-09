@@ -12,16 +12,18 @@ import (
 
 func (db *PostgreSQLConnection) RepositoryAddCounterValue(metricName string, metricValue int64) error {
 	var value int64
-	row := db.dbConn.QueryRow("SELECT Delta FROM "+MetricsTableName+" WHERE metricType = $1 AND metricName = $2", "counter", metricName)
+
+	tx, errTr := db.dbConn.Begin()
+
+	if errTr != nil {
+		return fmt.Errorf("error while starting transaction: %w", errTr)
+	}
+
+	row := tx.QueryRow("SELECT Delta FROM "+MetricsTableName+" WHERE metricType = $1 AND metricName = $2", "counter", metricName)
 
 	err := row.Scan(&value)
 	if (err != nil) && !(errors.Is(err, sql.ErrNoRows)) {
 		return fmt.Errorf("error while getting gauge metric value %w with name %s", err, metricName)
-	}
-
-	tx, errTr := db.dbConn.Begin()
-	if errTr != nil {
-		return fmt.Errorf("error while starting transaction: %w", err)
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
@@ -49,16 +51,18 @@ func (db *PostgreSQLConnection) RepositoryAddCounterValue(metricName string, met
 
 func (db *PostgreSQLConnection) RepositoryAddGaugeValue(metricName string, metricValue float64) error {
 	var value float64
-	row := db.dbConn.QueryRow("SELECT Value FROM "+MetricsTableName+" WHERE metricType = $1 AND metricName = $2", "gauge", metricName)
+
+	tx, errTr := db.dbConn.Begin()
+
+	if errTr != nil {
+		return fmt.Errorf("error while starting transaction: %w", errTr)
+	}
+
+	row := tx.QueryRow("SELECT Value FROM "+MetricsTableName+" WHERE metricType = $1 AND metricName = $2", "gauge", metricName)
 
 	err := row.Scan(&value)
 	if (err != nil) && !(errors.Is(err, sql.ErrNoRows)) {
 		return fmt.Errorf("error while getting gauge metric value %w", err)
-	}
-
-	tx, errTr := db.dbConn.Begin()
-	if errTr != nil {
-		return fmt.Errorf("error while starting transaction: %w", err)
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
@@ -84,16 +88,18 @@ func (db *PostgreSQLConnection) RepositoryAddGaugeValue(metricName string, metri
 
 func (db *PostgreSQLConnection) RepositoryAddValue(metricName string, metricValue int64) error {
 	var value int64
-	row := db.dbConn.QueryRow("SELECT Delta FROM "+MetricsTableName+" WHERE metricType = $1 AND metricName = $2", "counter", metricName)
+
+	tx, errTr := db.dbConn.Begin()
+
+	if errTr != nil {
+		return fmt.Errorf("error while starting transaction: %w", errTr)
+	}
+
+	row := tx.QueryRow("SELECT Delta FROM "+MetricsTableName+" WHERE metricType = $1 AND metricName = $2", "counter", metricName)
 
 	err := row.Scan(&value)
 	if (err != nil) && !(errors.Is(err, sql.ErrNoRows)) {
 		return fmt.Errorf("error while getting counter metric value %w", err)
-	}
-
-	tx, errTr := db.dbConn.Begin()
-	if errTr != nil {
-		return fmt.Errorf("error while starting transaction: %w", err)
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
@@ -111,6 +117,7 @@ func (db *PostgreSQLConnection) RepositoryAddValue(metricName string, metricValu
 		return fmt.Errorf("error while adding counter metric with name %s:  %w", metricName, err)
 	}
 	err = tx.Commit()
+
 	if err != nil {
 		return fmt.Errorf("error while closing transaction: %w", err)
 	}
@@ -122,6 +129,7 @@ func (db *PostgreSQLConnection) RepositoryAddAllValues(metrics []data.Metrics) e
 	var valueCounter int64
 	var valueGauge float64
 	tx, err := db.dbConn.Begin()
+
 	if err != nil {
 		return fmt.Errorf("error while starting transaction: %w", err)
 	}

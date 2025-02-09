@@ -40,13 +40,13 @@ func CheckValue(fieldName string) bool {
 	return false
 }
 
-//Alternative variant of structure processing:  variable := float64(memStats.Alloc)
+// Alternative variant of structure processing: variable := float64(memStats.Alloc)
 func GetMetrics(mapMetrics *map[string]interface{}, PollCount *int64, timer time.Duration, mutex *sync.RWMutex) {
 	var memStats runtime.MemStats
 	for {
 		runtime.ReadMemStats(&memStats)
 		val := reflect.ValueOf(memStats)
-		
+
 		mutex.Lock()
 		for fieldIndex := 0; fieldIndex < val.NumField(); fieldIndex++ {
 			field := val.Field(fieldIndex)
@@ -131,10 +131,19 @@ func main() {
 		metricData.Delta = &PollCount
 		metrics[i] = metricData
 
+		compressedMetrics, err := data.Compress(&metrics)
+		if err != nil {
+			fmt.Printf("Error while compressing data: %s", err)
+		}
+
 		_, err = client.R().
 			SetHeader("Content-Type", "application/json").
-			SetBody(metrics).
+			SetHeader("Accept-Encoding", "gzip").
+			SetHeader("Content-Encoding", "gzip").
+			SetBody(compressedMetrics).
 			Post(requestString)
+
+		// retryable
 		if err != nil {
 			fmt.Printf("Error while sending PollCounter for metric PollCount: %s", err)
 		} else {
@@ -143,48 +152,4 @@ func main() {
 
 		mutex.RUnlock()
 	}
-
-	// for {
-	// 	time.Sleep(time.Duration(reportInt) * time.Second)
-	// 	mutex.RLock()
-
-	// 	for metricName, metricValue := range mapMetrics {
-	// 		metricData := Metrics{}
-	// 		metricData.ID = metricName
-	// 		metricData.MType = "gauge"
-	// 		metricValueF64, err = strconv.ParseFloat(fmt.Sprint(metricValue), 64)
-	// 		if err != nil {
-	// 			fmt.Printf("Error while parsing metric %s: %s", metricName, err)
-	// 		}
-	// 		metricData.Value = &metricValueF64
-	// 		compressedMetric, err := metricData.Compress()
-	// 		if err != nil {
-	// 			fmt.Println(err)
-	// 		}
-	// 		_, err = client.R().
-	// 			SetHeader("Content-Type", "application/json").
-	// 			SetHeader("Content-Encoding", "gzip").
-	// 			SetHeader("Accept-Encoding", "gzip").
-	// 			SetBody(compressedMetric).
-	// 			Post(requestString)
-	// 		if err != nil {
-	// 			fmt.Printf("Error while sending metric %s: %s\n", metricName, err)
-	// 		}
-	// 	}
-	// 	metricData := Metrics{}
-	// 	metricData.ID = "PollCount"
-	// 	metricData.MType = "counter"
-	// 	metricData.Delta = &PollCount
-	// 	_, err = client.R().
-	// 		SetHeader("Content-Type", "application/json").
-	// 		SetBody(metricData).
-	// 		Post(requestString)
-	// 	if err != nil {
-	// 		fmt.Printf("Error while sending PollCounter for metric PollCount: %s", err)
-	// 	} else {
-	// 		PollCount = 0
-	// 	}
-
-	// 	mutex.RUnlock()
-	// }
 }

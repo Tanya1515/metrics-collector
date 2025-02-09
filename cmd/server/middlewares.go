@@ -76,7 +76,6 @@ func (App *Application) MiddlewareLogger(h http.HandlerFunc) http.HandlerFunc {
 
 // ... - variardic parameter, that can get any amount of parameters of type data.Middleware
 func (App *Application) MiddlewareChain(h http.HandlerFunc, m ...data.Middleware) http.HandlerFunc {
-
 	for _, wrap := range m {
 		h = wrap(h)
 	}

@@ -33,6 +33,7 @@ func (db *PostgreSQLConnection) GetGaugeValueByName(metricName string) (value fl
 func (db *PostgreSQLConnection) GetAllGaugeMetrics() (map[string]float64, error) {
 
 	gaugeMetrics := make(map[string]float64, 100)
+
 	rows, err := db.dbConn.Query("SELECT metricName, Value FROM "+MetricsTableName+" WHERE metricType = $1", "gauge")
 	if err != nil {
 		return gaugeMetrics, fmt.Errorf("error while getting all gauge metrics: %w", err)
@@ -49,7 +50,6 @@ func (db *PostgreSQLConnection) GetAllGaugeMetrics() (map[string]float64, error)
 		}
 		gaugeMetrics[metricName] = metricValue
 	}
-
 	err = rows.Err()
 	if err != nil {
 		return gaugeMetrics, fmt.Errorf("error while getting new data: %w", err)
@@ -63,7 +63,6 @@ func (db *PostgreSQLConnection) GetAllCounterMetrics() (map[string]int64, error)
 	conterMetrics := make(map[string]int64, 100)
 
 	rows, err := db.dbConn.Query("SELECT metricName, Delta FROM metrics WHERE metricType = $1", "counter")
-
 	if err != nil {
 		return conterMetrics, fmt.Errorf("error while getting all counter metrics: %w", err)
 	}
@@ -73,6 +72,7 @@ func (db *PostgreSQLConnection) GetAllCounterMetrics() (map[string]int64, error)
 	for rows.Next() {
 		var metricName string
 		var metricDelta int64
+
 		err = rows.Scan(&metricName, &metricDelta)
 		if err != nil {
 			return conterMetrics, fmt.Errorf("error while processing data: %w", err)
