@@ -57,13 +57,18 @@ func main() {
 	}
 
 	if postgreSQLAddress != "" {
-		postgreSQLAddrPort := strings.Split(postgreSQLAddress, ":")
+		postgreSQLAddrPortDatabase := strings.Split(postgreSQLAddress, ":")
+		postgreSQLDatabase := "postgres"
 		postgreSQLPort := "5432"
-		if len(postgreSQLAddrPort) == 2 {
-			postgreSQLPort = postgreSQLAddrPort[1]
+		if len(postgreSQLAddrPortDatabase) == 2 {
+			postgreSQLPortDatabase := strings.Split(postgreSQLAddrPortDatabase[1], "/")
+			if len(postgreSQLPortDatabase) == 2 {
+				postgreSQLDatabase = postgreSQLPortDatabase[1]
+			}
+			postgreSQLPort = postgreSQLPortDatabase[0]
 		}
-		postgreSQLAddr := postgreSQLAddrPort[0]
-		Storage = &psql.PostgreSQLConnection{Address: postgreSQLAddr, Port: postgreSQLPort, UserName: "postgres", Password: "postgres", DBName: "praktikum"}
+		postgreSQLAddr := postgreSQLAddrPortDatabase[0]
+		Storage = &psql.PostgreSQLConnection{Address: postgreSQLAddr, Port: postgreSQLPort, UserName: "postgres", Password: "postgres", DBName: postgreSQLDatabase}
 
 	} else {
 		Storage = &str.MemStorage{}
