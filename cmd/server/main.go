@@ -57,13 +57,16 @@ func main() {
 	}
 
 	if postgreSQLAddress != "" {
-		fmt.Println(postgreSQLAddress)
 		postgreSQLAddrPortDatabase := strings.Split(postgreSQLAddress, ":")
 		postgreSQLDatabase := "postgres"
 		postgreSQLPort := "5432"
 		if len(postgreSQLAddrPortDatabase) == 2 {
+			fmt.Println(postgreSQLAddrPortDatabase[0])
+			fmt.Println(postgreSQLAddrPortDatabase[1])
 			postgreSQLPortDatabase := strings.Split(postgreSQLAddrPortDatabase[1], "/")
 			if len(postgreSQLPortDatabase) == 2 {
+				fmt.Println(postgreSQLPortDatabase[0])
+				fmt.Println(postgreSQLPortDatabase[1])
 				postgreSQLDatabase = postgreSQLPortDatabase[1]
 			}
 			postgreSQLPort = postgreSQLPortDatabase[0]
