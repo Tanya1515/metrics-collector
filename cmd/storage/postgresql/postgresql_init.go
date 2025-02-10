@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -24,8 +23,8 @@ const (
 
 func (db *PostgreSQLConnection) Init(restore bool, fileStore string, backupTimer int) error {
 	var err error
-	ps := fmt.Sprintf("host=%s port=%s user=%s password=%s sslmode=disable",
-		db.Address, db.Port, db.UserName, db.Password)
+	ps := fmt.Sprintf("host=%s port=%s user=%s password=%s database=%s sslmode=disable",
+		db.Address, db.Port, db.UserName, db.Password, db.DBName)
 
 	db.dbConn, err = sql.Open("pgx", ps)
 	if err != nil {
@@ -47,8 +46,8 @@ func (db *PostgreSQLConnection) Init(restore bool, fileStore string, backupTimer
 																	metricType VARCHAR(100) NOT NULL,
 																	Delta INTEGER, 
 																	Value DOUBLE PRECISION);`)
-	if (err != nil) && !(strings.Contains(err.Error(), "already exists")) {
-		return fmt.Errorf("error %w occured while creating table %s", err, MetricsTableName)
+	if err != nil {
+		return err
 	}
 
 	return nil
