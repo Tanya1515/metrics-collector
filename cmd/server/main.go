@@ -57,6 +57,7 @@ func main() {
 	}
 
 	if postgreSQLAddress != "" {
+		fmt.Println(postgreSQLAddress)
 		postgreSQLAddrPortDatabase := strings.Split(postgreSQLAddress, ":")
 		postgreSQLDatabase := "postgres"
 		postgreSQLPort := "5432"
@@ -69,9 +70,6 @@ func main() {
 		}
 		postgreSQLAddr := postgreSQLAddrPortDatabase[0]
 		Storage = &psql.PostgreSQLConnection{Address: postgreSQLAddr, Port: postgreSQLPort, UserName: "postgres", Password: "postgres", DBName: postgreSQLDatabase}
-		fmt.Println(postgreSQLAddr)
-		fmt.Println(postgreSQLPort)
-		fmt.Println(postgreSQLDatabase)
 	} else {
 		Storage = &str.MemStorage{}
 	}
