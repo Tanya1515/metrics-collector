@@ -28,7 +28,7 @@ func (S *MemStorage) GetGaugeValueByName(metricName string) (float64, error) {
 	return 0, errors.Wrapf(errorMetricExists, "%s does not exist in gauge storage", metricName)
 }
 
-func (S *MemStorage) GetAllGaugeMetrics() map[string]float64 {
+func (S *MemStorage) GetAllGaugeMetrics() (map[string]float64, error) {
 	S.mutex.Lock()
 
 	defer S.mutex.Unlock()
@@ -38,10 +38,10 @@ func (S *MemStorage) GetAllGaugeMetrics() map[string]float64 {
 	for valueName, value := range S.gaugeStorage {
 		AllGaugeMetrics[valueName] = value
 	}
-	return AllGaugeMetrics
+	return AllGaugeMetrics, nil
 }
 
-func (S *MemStorage) GetAllCounterMetrics() map[string]int64 {
+func (S *MemStorage) GetAllCounterMetrics() (map[string]int64, error) {
 	S.mutex.Lock()
 
 	defer S.mutex.Unlock()
@@ -51,5 +51,5 @@ func (S *MemStorage) GetAllCounterMetrics() map[string]int64 {
 		AllCounterMetrics[valueName] = value
 	}
 
-	return AllCounterMetrics
+	return AllCounterMetrics, nil
 }

@@ -15,9 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
 	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
-
+	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
 )
 
 func TestProcessRequest(t *testing.T) {
