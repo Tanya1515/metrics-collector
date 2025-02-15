@@ -15,7 +15,7 @@ import (
 	"github.com/go-resty/resty/v2"
 
 	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
-	retryErr "github.com/Tanya1515/metrics-collector.git/cmd/errors"
+	retryerr "github.com/Tanya1515/metrics-collector.git/cmd/errors"
 )
 
 var (
@@ -145,10 +145,10 @@ func main() {
 			Post(requestString)
 
 		for i := 0; i < 3; i++ {
-			if (err != nil) && !(retryErr.CheckErrorType(err)) {
+			if (err != nil) && !(retryerr.CheckErrorType(err)) {
 				fmt.Printf("Error while sending metrics: %s", err)
 				break
-			} else if retryErr.CheckErrorType(err) {
+			} else if retryerr.CheckErrorType(err) {
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
@@ -167,7 +167,7 @@ func main() {
 				Post(requestString)
 		}
 
-		if retryErr.CheckErrorType(err) {
+		if retryerr.CheckErrorType(err) {
 			fmt.Printf("Network error while sending metrics: %s", err)
 		}
 		mutex.RUnlock()

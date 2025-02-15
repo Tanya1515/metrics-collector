@@ -1,4 +1,4 @@
-package retryErr
+package retryerr
 
 import (
 	"errors"
