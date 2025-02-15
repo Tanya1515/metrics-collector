@@ -492,6 +492,7 @@ func (App *Application) UpdateAllValues() http.HandlerFunc {
 			if (metric.MType != "counter") && (metric.MType != "gauge") {
 				http.Error(rw, fmt.Sprintf("Error 400: Metric with name %s invalid metric type : %s", metric.ID, metric.MType), http.StatusBadRequest)
 				App.Logger.Errorln(fmt.Sprintf("Metric with name %s invalid metric type : %s", metric.ID, metric.MType))
+				return
 			}
 		}
 
@@ -499,15 +500,12 @@ func (App *Application) UpdateAllValues() http.HandlerFunc {
 
 		for i := 0; i < 3; i++ {
 			if err == nil {
-				fmt.Println("ERROR NIL")
 				break
 			} else if !(retryerr.CheckErrorType(err)) {
-				fmt.Println("Error NOT NIL NOT NET")
 				http.Error(rw, fmt.Sprintf("Error while adding all metrics to storage: %s", err), http.StatusInternalServerError)
 				App.Logger.Errorln("Error while adding all metrics to storage", err)
 				return
 			} else if retryerr.CheckErrorType(err) {
-				fmt.Println("Error NET")
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
