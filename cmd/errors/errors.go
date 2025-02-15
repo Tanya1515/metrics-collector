@@ -12,7 +12,7 @@ import (
 func CheckErrorType(err error) bool {
 	if err, ok := err.(*pq.Error); ok {
 		if (err.Code == pgerrcode.ConnectionException) || (err.Code == pgerrcode.ConnectionDoesNotExist) || (err.Code == pgerrcode.ConnectionFailure) || (err.Code == pgerrcode.InvalidTransactionInitiation) {
-
+			return true
 		}
 	}
 
