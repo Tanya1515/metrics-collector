@@ -15,6 +15,7 @@ import (
 	"github.com/go-resty/resty/v2"
 
 	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
+	retryerr "github.com/Tanya1515/metrics-collector.git/cmd/errors"
 )
 
 var (
@@ -143,38 +144,32 @@ func main() {
 			SetBody(compressedMetrics).
 			Post(requestString)
 
-		if err != nil {
-			fmt.Printf("Error while sending metrics: %s", err)
-		} else {
-			PollCount = 0
+		for i := 0; i < 3; i++ {
+			if err == nil {
+				PollCount = 0
+				break
+			} else if !(retryerr.CheckErrorType(err)) {
+				fmt.Printf("Error while sending metrics: %s", err)
+				break
+			} else if retryerr.CheckErrorType(err) {
+				if i == 0 {
+					time.Sleep(1 * time.Second)
+				} else {
+					time.Sleep(time.Duration(i+2) * time.Second)
+				}
+			}
+			fmt.Printf("Send metrics to server\n")
+			_, err = client.R().
+				SetHeader("Content-Type", "application/json").
+				SetHeader("Accept-Encoding", "gzip").
+				SetHeader("Content-Encoding", "gzip").
+				SetBody(compressedMetrics).
+				Post(requestString)
 		}
 
-		// for i := 0; i < 3; i++ {
-		// 	if err == nil {
-		// 		PollCount = 0
-		// 		break
-		// 	} else if !(retryerr.CheckErrorType(err)) {
-		// 		fmt.Printf("Error while sending metrics: %s", err)
-		// 		break
-		// 	} else if retryerr.CheckErrorType(err) {
-		// 		if i == 0 {
-		// 			time.Sleep(1 * time.Second)
-		// 		} else {
-		// 			time.Sleep(time.Duration(i+2) * time.Second)
-		// 		}
-		// 	}
-		// 	fmt.Printf("Send metrics to server\n")
-		// 	_, err = client.R().
-		// 		SetHeader("Content-Type", "application/json").
-		// 		SetHeader("Accept-Encoding", "gzip").
-		// 		SetHeader("Content-Encoding", "gzip").
-		// 		SetBody(compressedMetrics).
-		// 		Post(requestString)
-		// }
-
-		// if retryerr.CheckErrorType(err) {
-		// 	fmt.Printf("Network error while sending metrics: %s", err)
-		// }
+		if (err != nil) && retryerr.CheckErrorType(err) {
+			fmt.Printf("Network error while sending metrics: %s", err)
+		}
 		mutex.RUnlock()
 	}
 }
