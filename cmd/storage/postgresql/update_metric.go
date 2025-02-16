@@ -154,7 +154,7 @@ func (db *PostgreSQLConnection) RepositoryAddAllValues(metrics []data.Metrics) e
 				}
 			} else {
 				_, err = tx.Exec(
-					"UPDATE "+MetricsTableName+" SET Delta = $1 WHERE metricName = $2 AND metricType = $3", valueCounter+*metric.Delta, metric.ID, "counter")
+					"UPDATE "+MetricsTableName+" SET Delta = $1 WHERE metricName = $2 AND metricType = $3", valueCounter+(*metric.Delta), metric.ID, "counter")
 
 				if err != nil {
 					tx.Rollback()

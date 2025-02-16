@@ -34,7 +34,7 @@ func (db *PostgreSQLConnection) Init(restore bool, fileStore string, backupTimer
 	_, err = db.dbConn.Exec(`CREATE TABLE ` + MetricsTableName + ` (Id BIGSERIAL PRIMARY KEY,
 	                                                                metricName VARCHAR(100) NOT NULL,
 																	metricType VARCHAR(100) NOT NULL,
-																	Delta INTEGER, 
+																	Delta BIGINT, 
 																	Value DOUBLE PRECISION);`)
 	if err != nil {
 		return err
