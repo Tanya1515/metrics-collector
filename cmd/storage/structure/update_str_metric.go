@@ -41,13 +41,18 @@ func (S *MemStorage) RepositoryAddGaugeValue(metricName string, metricValue floa
 }
 
 func (S *MemStorage) RepositoryAddAllValues(metrics []data.Metrics) error {
-
-	for _, metric := range metrics{
-		if metric.MType == "counter"{
-			S.RepositoryAddCounterValue(metric.ID, *metric.Delta)
+	S.mutex.Lock()
+	for _, metric := range metrics {
+		if metric.MType == "counter" {
+			S.counterStorage[metric.ID] = S.counterStorage[metric.ID] + *metric.Delta
 		} else if metric.MType == "gauge" {
-			S.RepositoryAddGaugeValue(metric.ID, *metric.Value)
+			S.gaugeStorage[metric.ID] = *metric.Value
 		}
+	}
+	S.mutex.Unlock()
+
+	if (S.fileStore != "") && (S.backupTimer == 0) {
+		S.SaveMetrics()
 	}
 	return nil
 }
