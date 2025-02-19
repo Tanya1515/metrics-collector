@@ -29,6 +29,8 @@ var (
 	fileStorePathFlag *string
 	restoreFlag       *bool
 	postgreSQLFlag    *string
+	secretKeyFlag     *string
+	secretKeyHash     string
 )
 
 // при синхронной записи сбрасывается значение PollCount
@@ -39,6 +41,7 @@ func init() {
 	storeIntervalFlag = flag.Int("i", 300, "time duration for saving metrics")
 	fileStorePathFlag = flag.String("f", "/tmp/metrics-db.json", "filename for storing metrics")
 	restoreFlag = flag.Bool("r", true, "store all info")
+	secretKeyFlag = flag.String("k", "", "secret key for hash")
 }
 
 func main() {
@@ -54,6 +57,11 @@ func main() {
 	postgreSQLAddress, envExists := os.LookupEnv("DATABASE_DSN")
 	if !(envExists) {
 		postgreSQLAddress = *postgreSQLFlag
+	}
+
+	secretKeyHash, secretKeyExists := os.LookupEnv("KEY")
+	if !(secretKeyExists) {
+		secretKeyHash = *secretKeyFlag
 	}
 
 	if postgreSQLAddress != "" {
@@ -119,9 +127,11 @@ func main() {
 		fmt.Println(err)
 	}
 
-	commonMiddlewares := []data.Middleware{
-		App.MiddlewareZipper,
-		App.MiddlewareLogger,
+	commonMiddlewares := []data.Middleware{}
+	if secretKeyHash != "" {
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareZipper, App.MiddlewareHash, App.MiddlewareLogger)
+	} else {
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareZipper, App.MiddlewareLogger)
 	}
 
 	r := chi.NewRouter()

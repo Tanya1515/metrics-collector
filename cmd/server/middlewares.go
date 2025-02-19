@@ -2,6 +2,8 @@ package main
 
 import (
 	"compress/gzip"
+	"crypto/hmac"
+	"crypto/sha256"
 	"net/http"
 	"strings"
 	"time"
@@ -71,6 +73,31 @@ func (App *Application) MiddlewareLogger(h http.HandlerFunc) http.HandlerFunc {
 			"ResponseSize", responseData.size,
 		)
 
+	}
+}
+
+func (App *Application) MiddlewareHash(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var reqBody []byte
+
+		_, err := r.Body.Read(reqBody)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			App.Logger.Errorln("Error during reading request body")
+			return
+		}
+
+		sign := r.Header.Get("HashSHA256")
+
+		h := hmac.New(sha256.New, []byte(secretKeyHash))
+		h.Write(reqBody)
+		signCheck := h.Sum(nil)
+
+		if !(hmac.Equal([]byte(sign), signCheck)) {
+			http.Error(w, "Error while checking HashSHA256 of the request", http.StatusBadRequest)
+			App.Logger.Errorln("HashSHA256 is incorrect")
+			return
+		}
 	}
 }
 

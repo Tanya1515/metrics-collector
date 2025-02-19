@@ -1,8 +1,8 @@
 package main
 
 import (
-	"net/http"
 	"io"
+	"net/http"
 )
 
 type (
@@ -13,7 +13,7 @@ type (
 
 	LoggingZipperResponseWriter struct {
 		http.ResponseWriter
-		Writer io.Writer
+		Writer       io.Writer
 		responseData *ResponseData
 	}
 )

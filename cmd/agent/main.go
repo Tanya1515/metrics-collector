@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -22,12 +24,14 @@ var (
 	reportIntervalFlag *int
 	pollIntervalFlag   *int
 	serverAddressFlag  *string
+	secretKeyFlag      *string
 )
 
 func init() {
 	reportIntervalFlag = flag.Int("r", 10, "time duration for sending metrics")
 	pollIntervalFlag = flag.Int("p", 2, "time duration for getting metrics")
 	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
+	secretKeyFlag = flag.String("k", "", "secret key for creating hash")
 }
 
 func CheckValue(fieldName string) bool {
@@ -106,6 +110,11 @@ func main() {
 		}
 	}
 
+	secretKeyHash, secretKeyExists := os.LookupEnv("KEY")
+	if !(secretKeyExists) {
+		secretKeyHash = *secretKeyFlag
+	}
+
 	requestString := MakeString(serverAddress)
 	go GetMetrics(&mapMetrics, &PollCount, time.Duration(pollInt), &mutex)
 
@@ -132,17 +141,32 @@ func main() {
 		metricData.Delta = &PollCount
 		metrics[i] = metricData
 
+		var sign []byte
+
 		compressedMetrics, err := data.Compress(&metrics)
 		if err != nil {
 			fmt.Printf("Error while compressing data: %s", err)
 		}
+		if secretKeyHash != "" {
+			h := hmac.New(sha256.New, []byte(secretKeyHash))
+			h.Write(compressedMetrics)
+			sign = h.Sum(nil)
+		}
 		fmt.Printf("Send metrics to server\n")
-		_, err = client.R().
-			SetHeader("Content-Type", "application/json").
-			SetHeader("Accept-Encoding", "gzip").
-			SetHeader("Content-Encoding", "gzip").
-			SetBody(compressedMetrics).
-			Post(requestString)
+		if secretKeyHash != "" {
+			_, err = client.R().
+				SetHeader("Content-Type", "application/json").
+				SetHeader("Content-Encoding", "gzip").
+				SetHeader("HashSHA256", string(sign)).
+				SetBody(compressedMetrics).
+				Post(requestString)
+		} else {
+			_, err = client.R().
+				SetHeader("Content-Type", "application/json").
+				SetHeader("Content-Encoding", "gzip").
+				SetBody(compressedMetrics).
+				Post(requestString)
+		}
 
 		for i := 0; i < 3; i++ {
 			if err == nil {
