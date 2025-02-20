@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"compress/gzip"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/hex"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -76,28 +79,50 @@ func (App *Application) MiddlewareLogger(h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func (App *Application) MiddlewareHash(h http.HandlerFunc) http.HandlerFunc {
+func (App *Application) MiddlewareHash(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var reqBody []byte
+		responseData := &ResponseData{
+			status: 0,
+			size:   0,
+		}
 
-		_, err := r.Body.Read(reqBody)
+		zlw := LoggingZipperResponseWriter{
+			w,
+			w,
+			responseData,
+		}
+
+		body, err := io.ReadAll(r.Body)
+
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			App.Logger.Errorln("Error during reading request body")
 			return
 		}
 
+		// Replace the body with a new reader after reading from the original
+		r.Body = io.NopCloser(bytes.NewBuffer(body))
+
 		sign := r.Header.Get("HashSHA256")
+		if sign != "" {
+			signDecode, err := hex.DecodeString(sign)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				App.Logger.Errorln("Error during HashSHA256 decoding")
+			}
 
-		h := hmac.New(sha256.New, []byte(secretKeyHash))
-		h.Write(reqBody)
-		signCheck := h.Sum(nil)
+			h := hmac.New(sha256.New, []byte(App.SecretKey))
+			h.Write(body)
+			signCheck := h.Sum(nil)
 
-		if !(hmac.Equal([]byte(sign), signCheck)) {
-			http.Error(w, "Error while checking HashSHA256 of the request", http.StatusBadRequest)
-			App.Logger.Errorln("HashSHA256 is incorrect")
-			return
+			if !(hmac.Equal(signDecode, signCheck)) {
+				http.Error(w, "Error while checking HashSHA256 of the request", http.StatusBadRequest)
+				App.Logger.Errorln("HashSHA256 is incorrect")
+				return
+			}
 		}
+
+		next(&zlw, r)
 	}
 }
 

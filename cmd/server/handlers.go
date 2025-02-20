@@ -111,7 +111,7 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 			gz, err := gzip.NewReader(r.Body)
 			if err != nil {
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				App.Logger.Errorln("Error during unpacking the request")
+				App.Logger.Errorln("Error during unpacking the request: ", err)
 				return
 			}
 			defer gz.Close()
@@ -457,7 +457,7 @@ func (App *Application) UpdateAllValues() http.HandlerFunc {
 			gz, err := gzip.NewReader(r.Body)
 			if err != nil {
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				App.Logger.Errorln("Error during unpacking the request")
+				App.Logger.Errorln("Error during unpacking the request: ", err)
 				return
 			}
 			defer gz.Close()

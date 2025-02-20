@@ -19,21 +19,10 @@ import (
 )
 
 type Application struct {
-	Storage storage.RepositoryInterface
-	Logger  zap.SugaredLogger
+	Storage   storage.RepositoryInterface
+	Logger    zap.SugaredLogger
+	SecretKey string
 }
-
-var (
-	serverAddressFlag *string
-	storeIntervalFlag *int
-	fileStorePathFlag *string
-	restoreFlag       *bool
-	postgreSQLFlag    *string
-	secretKeyFlag     *string
-	secretKeyHash     string
-)
-
-// при синхронной записи сбрасывается значение PollCount
 
 func init() {
 	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
@@ -43,6 +32,15 @@ func init() {
 	restoreFlag = flag.Bool("r", true, "store all info")
 	secretKeyFlag = flag.String("k", "", "secret key for hash")
 }
+
+var (
+	serverAddressFlag *string
+	storeIntervalFlag *int
+	fileStorePathFlag *string
+	restoreFlag       *bool
+	postgreSQLFlag    *string
+	secretKeyFlag     *string
+)
 
 func main() {
 	var Storage storage.RepositoryInterface
@@ -57,11 +55,6 @@ func main() {
 	postgreSQLAddress, envExists := os.LookupEnv("DATABASE_DSN")
 	if !(envExists) {
 		postgreSQLAddress = *postgreSQLFlag
-	}
-
-	secretKeyHash, secretKeyExists := os.LookupEnv("KEY")
-	if !(secretKeyExists) {
-		secretKeyHash = *secretKeyFlag
 	}
 
 	if postgreSQLAddress != "" {
@@ -88,7 +81,12 @@ func main() {
 
 	defer logger.Sync()
 
-	App := Application{Storage: Storage, Logger: *logger.Sugar()}
+	secretKeyHash, secretKeyExists := os.LookupEnv("KEY")
+	if !(secretKeyExists) {
+		secretKeyHash = *secretKeyFlag
+	}
+
+	App := Application{Storage: Storage, Logger: *logger.Sugar(), SecretKey: secretKeyHash}
 
 	App.Logger.Infow(
 		"Starting server",
@@ -129,7 +127,7 @@ func main() {
 
 	commonMiddlewares := []data.Middleware{}
 	if secretKeyHash != "" {
-		commonMiddlewares = append(commonMiddlewares, App.MiddlewareZipper, App.MiddlewareHash, App.MiddlewareLogger)
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareHash, App.MiddlewareZipper, App.MiddlewareLogger)
 	} else {
 		commonMiddlewares = append(commonMiddlewares, App.MiddlewareZipper, App.MiddlewareLogger)
 	}

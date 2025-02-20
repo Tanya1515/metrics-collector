@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -157,7 +158,7 @@ func main() {
 			_, err = client.R().
 				SetHeader("Content-Type", "application/json").
 				SetHeader("Content-Encoding", "gzip").
-				SetHeader("HashSHA256", string(sign)).
+				SetHeader("HashSHA256", hex.EncodeToString(sign)).
 				SetBody(compressedMetrics).
 				Post(requestString)
 		} else {
@@ -173,7 +174,7 @@ func main() {
 				PollCount = 0
 				break
 			} else if !(retryerr.CheckErrorType(err)) {
-				fmt.Printf("Error while sending metrics: %s", err)
+				fmt.Println("Error while sending metrics: ", err)
 				break
 			} else if retryerr.CheckErrorType(err) {
 				if i == 0 {
