@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -187,14 +190,20 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 			}
 		}
 
-		rw.Header().Set("Content-Type", "application/json")
-		rw.WriteHeader(http.StatusOK)
-
 		metricDataBytes, err := json.Marshal(metricData)
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			App.Logger.Errorln("Error during serialization")
 		}
+		if App.SecretKey != "" {
+			h := hmac.New(sha256.New, []byte(App.SecretKey))
+			h.Write(metricDataBytes)
+			signCheck := h.Sum(nil)
+			rw.Header().Set("HashSHA256", hex.EncodeToString(signCheck))
+		}
+
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusOK)
 
 		rw.Write(metricDataBytes)
 
@@ -340,6 +349,13 @@ func (App *Application) GetMetricPath() http.HandlerFunc {
 		}
 
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		if App.SecretKey != "" {
+			h := hmac.New(sha256.New, []byte(App.SecretKey))
+			h.Write([]byte(metricRes))
+			signCheck := h.Sum(nil)
+			rw.Header().Set("HashSHA256", hex.EncodeToString(signCheck))
+		}
+
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte(metricRes))
 
@@ -438,6 +454,13 @@ func (App *Application) GetMetric() http.HandlerFunc {
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			App.Logger.Errorln("Error during serialization")
+		}
+
+		if App.SecretKey != "" {
+			h := hmac.New(sha256.New, []byte(App.SecretKey))
+			h.Write(metricDataBytes)
+			signCheck := h.Sum(nil)
+			rw.Header().Set("HashSHA256", hex.EncodeToString(signCheck))
 		}
 		rw.Header().Set("Content-Type", "application/json")
 		rw.WriteHeader(http.StatusOK)
