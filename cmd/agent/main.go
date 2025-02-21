@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/go-resty/resty/v2"
 
 	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
@@ -79,12 +81,24 @@ func MakeString(serverAddress string) string {
 
 func main() {
 	var err error
-	fmt.Println("Start agent for collecting metrics")
 	mapMetrics := make(map[string]interface{}, 20)
 	var PollCount int64
 	var mutex sync.RWMutex
 
 	client := resty.New()
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+
+	defer logger.Sync()
+
+	Logger := *logger.Sugar()
+
+	Logger.Infow(
+		"Starting agent for collecting metrics",
+	)
 
 	flag.Parse()
 
@@ -98,7 +112,7 @@ func main() {
 	if reportIntExists {
 		reportInt, err = strconv.Atoi(reportInterval)
 		if err != nil {
-			fmt.Printf("Error while transforming to int: %s\n", err)
+			Logger.Errorln("Error while transforming to int: ", err)
 		}
 	}
 
@@ -107,7 +121,7 @@ func main() {
 	if pollIntervalExist {
 		pollInt, err = strconv.Atoi(pollInterval)
 		if err != nil {
-			fmt.Printf("Error while transforming to int: %s\n", err)
+			Logger.Errorln("Error while transforming to int: ", err)
 		}
 	}
 
@@ -130,7 +144,7 @@ func main() {
 			metricData.MType = "gauge"
 			metricValueF64, err := strconv.ParseFloat(fmt.Sprint(metricValue), 64)
 			if err != nil {
-				fmt.Printf("Error while parsing metric %s: %s", metricName, err)
+				Logger.Errorln("Error while parsing metric ", metricName, ": ", err)
 			}
 			metricData.Value = &metricValueF64
 			metrics[i] = metricData
@@ -146,55 +160,47 @@ func main() {
 
 		compressedMetrics, err := data.Compress(&metrics)
 		if err != nil {
-			fmt.Printf("Error while compressing data: %s", err)
+			Logger.Errorln("Error while compressing data: ", err)
 		}
 		if secretKeyHash != "" {
 			h := hmac.New(sha256.New, []byte(secretKeyHash))
 			h.Write(compressedMetrics)
 			sign = h.Sum(nil)
 		}
-		fmt.Printf("Send metrics to server\n")
-		if secretKeyHash != "" {
-			_, err = client.R().
-				SetHeader("Content-Type", "application/json").
-				SetHeader("Content-Encoding", "gzip").
-				SetHeader("HashSHA256", hex.EncodeToString(sign)).
-				SetBody(compressedMetrics).
-				Post(requestString)
-		} else {
-			_, err = client.R().
-				SetHeader("Content-Type", "application/json").
-				SetHeader("Content-Encoding", "gzip").
-				SetBody(compressedMetrics).
-				Post(requestString)
-		}
+		Logger.Infoln("Send metrics to server")
 
-		for i := 0; i < 3; i++ {
+		for i := 0; i <= 3; i++ {
+			if secretKeyHash != "" {
+				_, err = client.R().
+					SetHeader("Content-Type", "application/json").
+					SetHeader("Content-Encoding", "gzip").
+					SetHeader("HashSHA256", hex.EncodeToString(sign)).
+					SetBody(compressedMetrics).
+					Post(requestString)
+			} else {
+				_, err = client.R().
+					SetHeader("Content-Type", "application/json").
+					SetHeader("Content-Encoding", "gzip").
+					SetBody(compressedMetrics).
+					Post(requestString)
+			}
 			if err == nil {
 				PollCount = 0
 				break
-			} else if !(retryerr.CheckErrorType(err)) {
-				fmt.Println("Error while sending metrics: ", err)
-				break
-			} else if retryerr.CheckErrorType(err) {
-				if i == 0 {
-					time.Sleep(1 * time.Second)
-				} else {
-					time.Sleep(time.Duration(i+2) * time.Second)
-				}
 			}
-			fmt.Printf("Send metrics to server\n")
-			_, err = client.R().
-				SetHeader("Content-Type", "application/json").
-				SetHeader("Accept-Encoding", "gzip").
-				SetHeader("Content-Encoding", "gzip").
-				SetBody(compressedMetrics).
-				Post(requestString)
+			if !(retryerr.CheckErrorType(err)) || (i == 3) {
+				Logger.Errorln("Error while sending metrics: ", err)
+				break
+			}
+
+			Logger.Errorln("Network error:", err, ", retry: ", i)
+			if i == 0 {
+				time.Sleep(1 * time.Second)
+			} else {
+				time.Sleep(time.Duration(i+i+1) * time.Second)
+			}
 		}
 
-		if (err != nil) && retryerr.CheckErrorType(err) {
-			fmt.Printf("Network error while sending metrics: %s", err)
-		}
 		mutex.RUnlock()
 	}
 }

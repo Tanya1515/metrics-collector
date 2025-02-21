@@ -32,7 +32,7 @@ func (db *PostgreSQLConnection) Init(restore bool, fileStore string, backupTimer
 	}
 
 	_, err = db.dbConn.Exec(`CREATE TABLE ` + MetricsTableName + ` (Id BIGSERIAL PRIMARY KEY,
-	                                                                metricName VARCHAR(100) NOT NULL,
+	                                                                metricName VARCHAR(100) NOT NULL UNIQUE,
 																	metricType VARCHAR(100) NOT NULL,
 																	Delta BIGINT, 
 																	Value DOUBLE PRECISION);`)
