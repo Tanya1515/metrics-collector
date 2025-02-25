@@ -1,9 +1,9 @@
 package main
 
 import (
-	"bytes"
-	"compress/gzip"
-	"encoding/json"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -15,51 +15,26 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/go-resty/resty/v2"
+
+	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
+	retryerr "github.com/Tanya1515/metrics-collector.git/cmd/errors"
 )
 
 var (
 	reportIntervalFlag *int
 	pollIntervalFlag   *int
 	serverAddressFlag  *string
+	secretKeyFlag      *string
 )
 
 func init() {
 	reportIntervalFlag = flag.Int("r", 10, "time duration for sending metrics")
 	pollIntervalFlag = flag.Int("p", 2, "time duration for getting metrics")
 	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
-}
-
-type Metrics struct {
-	ID    string   `json:"id"`
-	MType string   `json:"type"`
-	Delta *int64   `json:"delta,omitempty"`
-	Value *float64 `json:"value,omitempty"`
-}
-
-func (metricData *Metrics) Compress() ([]byte, error) {
-	var b bytes.Buffer
-
-	w, err := gzip.NewWriterLevel(&b, gzip.BestCompression)
-	if err != nil {
-		return nil, fmt.Errorf("failed init compress writer: %v", err)
-	}
-
-	metricDataBytes, err := json.Marshal(metricData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compress data: %v", err)
-	}
-	_, err = w.Write(metricDataBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed write data to compress temporary buffer: %v", err)
-	}
-
-	err = w.Close()
-	if err != nil {
-		return nil, fmt.Errorf("failed compress data: %v", err)
-	}
-
-	return b.Bytes(), nil
+	secretKeyFlag = flag.String("k", "", "secret key for creating hash")
 }
 
 func CheckValue(fieldName string) bool {
@@ -73,13 +48,13 @@ func CheckValue(fieldName string) bool {
 	return false
 }
 
-//Alternative variant of structure processing:  variable := float64(memStats.Alloc)
+// Alternative variant of structure processing: variable := float64(memStats.Alloc)
 func GetMetrics(mapMetrics *map[string]interface{}, PollCount *int64, timer time.Duration, mutex *sync.RWMutex) {
 	var memStats runtime.MemStats
 	for {
 		runtime.ReadMemStats(&memStats)
 		val := reflect.ValueOf(memStats)
-		
+
 		mutex.Lock()
 		for fieldIndex := 0; fieldIndex < val.NumField(); fieldIndex++ {
 			field := val.Field(fieldIndex)
@@ -99,19 +74,31 @@ func MakeString(serverAddress string) string {
 	builder := strings.Builder{}
 	builder.WriteString("http://")
 	builder.WriteString(serverAddress)
-	builder.WriteString("/update/")
+	builder.WriteString("/updates/")
 
 	return builder.String()
 }
 
 func main() {
 	var err error
-	fmt.Println("Start agent for collecting metrics")
 	mapMetrics := make(map[string]interface{}, 20)
 	var PollCount int64
 	var mutex sync.RWMutex
 
 	client := resty.New()
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+
+	defer logger.Sync()
+
+	Logger := *logger.Sugar()
+
+	Logger.Infow(
+		"Starting agent for collecting metrics",
+	)
 
 	flag.Parse()
 
@@ -125,7 +112,7 @@ func main() {
 	if reportIntExists {
 		reportInt, err = strconv.Atoi(reportInterval)
 		if err != nil {
-			fmt.Printf("Error while transforming to int: %s\n", err)
+			Logger.Errorln("Error while transforming to int: ", err)
 		}
 	}
 
@@ -134,53 +121,84 @@ func main() {
 	if pollIntervalExist {
 		pollInt, err = strconv.Atoi(pollInterval)
 		if err != nil {
-			fmt.Printf("Error while transforming to int: %s\n", err)
+			Logger.Errorln("Error while transforming to int: ", err)
 		}
 	}
 
+	secretKeyHash, secretKeyExists := os.LookupEnv("KEY")
+	if !(secretKeyExists) {
+		secretKeyHash = *secretKeyFlag
+	}
+
 	requestString := MakeString(serverAddress)
-	var metricValueF64 float64
 	go GetMetrics(&mapMetrics, &PollCount, time.Duration(pollInt), &mutex)
 
 	for {
 		time.Sleep(time.Duration(reportInt) * time.Second)
 		mutex.RLock()
-
+		i := 0
+		metrics := make([]data.Metrics, 29)
 		for metricName, metricValue := range mapMetrics {
-			metricData := Metrics{}
+			metricData := data.Metrics{}
 			metricData.ID = metricName
 			metricData.MType = "gauge"
-			metricValueF64, err = strconv.ParseFloat(fmt.Sprint(metricValue), 64)
+			metricValueF64, err := strconv.ParseFloat(fmt.Sprint(metricValue), 64)
 			if err != nil {
-				fmt.Printf("Error while parsing metric %s: %s", metricName, err)
+				Logger.Errorln("Error while parsing metric ", metricName, ": ", err)
 			}
 			metricData.Value = &metricValueF64
-			compressedMetric, err := metricData.Compress()
-			if err != nil {
-				fmt.Println(err)
-			}
-			_, err = client.R().
-				SetHeader("Content-Type", "application/json").
-				SetHeader("Content-Encoding", "gzip").
-				SetHeader("Accept-Encoding", "gzip").
-				SetBody(compressedMetric).
-				Post(requestString)
-			if err != nil {
-				fmt.Printf("Error while sending metric %s: %s\n", metricName, err)
-			}
+			metrics[i] = metricData
+			i += 1
 		}
-		metricData := Metrics{}
+		metricData := data.Metrics{}
 		metricData.ID = "PollCount"
 		metricData.MType = "counter"
 		metricData.Delta = &PollCount
-		_, err = client.R().
-			SetHeader("Content-Type", "application/json").
-			SetBody(metricData).
-			Post(requestString)
+		metrics[i] = metricData
+
+		var sign []byte
+
+		compressedMetrics, err := data.Compress(&metrics)
 		if err != nil {
-			fmt.Printf("Error while sending PollCounter for metric PollCount: %s", err)
-		} else {
-			PollCount = 0
+			Logger.Errorln("Error while compressing data: ", err)
+		}
+		if secretKeyHash != "" {
+			h := hmac.New(sha256.New, []byte(secretKeyHash))
+			h.Write(compressedMetrics)
+			sign = h.Sum(nil)
+		}
+		Logger.Infoln("Send metrics to server")
+
+		for i := 0; i <= 3; i++ {
+			if secretKeyHash != "" {
+				_, err = client.R().
+					SetHeader("Content-Type", "application/json").
+					SetHeader("Content-Encoding", "gzip").
+					SetHeader("HashSHA256", hex.EncodeToString(sign)).
+					SetBody(compressedMetrics).
+					Post(requestString)
+			} else {
+				_, err = client.R().
+					SetHeader("Content-Type", "application/json").
+					SetHeader("Content-Encoding", "gzip").
+					SetBody(compressedMetrics).
+					Post(requestString)
+			}
+			if err == nil {
+				PollCount = 0
+				break
+			}
+			if !(retryerr.CheckErrorType(err)) || (i == 3) {
+				Logger.Errorln("Error while sending metrics: ", err)
+				break
+			}
+
+			Logger.Errorln("Network error:", err, ", retry: ", i)
+			if i == 0 {
+				time.Sleep(1 * time.Second)
+			} else {
+				time.Sleep(time.Duration(i+i+1) * time.Second)
+			}
 		}
 
 		mutex.RUnlock()

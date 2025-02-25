@@ -22,7 +22,10 @@ func (S *MemStorage) SaveMetrics() (err error) {
 	gaugeMetric := data.Metrics{ID: "", MType: "gauge"}
 	counterMetric := data.Metrics{ID: "", MType: "counter"}
 	i := 0
-	allGaugeMetrics := S.GetAllGaugeMetrics()
+	allGaugeMetrics, err := S.GetAllGaugeMetrics()
+	if err != nil {
+		return 
+	}
 	for metricName, metricValue := range allGaugeMetrics {
 		gaugeMetric.ID = metricName
 		gaugeMetric.Value = &metricValue
@@ -30,7 +33,10 @@ func (S *MemStorage) SaveMetrics() (err error) {
 		i += 1
 	}
 
-	allCounterMetrics := S.GetAllCounterMetrics()
+	allCounterMetrics, err := S.GetAllCounterMetrics()
+	if err != nil {
+		return 
+	}
 	for metricName, metricValue := range allCounterMetrics {
 		counterMetric.ID = metricName
 		counterMetric.Delta = &metricValue

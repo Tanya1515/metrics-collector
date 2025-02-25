@@ -3,16 +3,22 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
+	retryerr "github.com/Tanya1515/metrics-collector.git/cmd/errors"
 )
 
 func (App *Application) UpdateValuePath() http.HandlerFunc {
@@ -43,7 +49,23 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 				App.Logger.Errorln("Invalid metric value:", err)
 				return
 			}
-			App.Storage.RepositoryAddCounterValue(metricName, metricValueInt64)
+			
+			for i := 0; i <= 3; i++ {
+				err = App.Storage.RepositoryAddCounterValue(metricName, metricValueInt64)
+				if err == nil {
+					break
+				}  
+				if !(retryerr.CheckErrorType(err)) || (i == 3) {
+					http.Error(rw, fmt.Sprintf("Error 500: Error while adding counter metric %s to Storage", metricData.ID), http.StatusInternalServerError)
+					App.Logger.Errorln("Error while adding counter metric to Storage:", err)
+					return
+				}
+				if i == 0 {
+					time.Sleep(1 * time.Second)
+				} else {
+					time.Sleep(time.Duration(i + i + 1) * time.Second)
+				}
+			}
 		}
 		if metricType == "gauge" {
 			metricData.MType = "gauge"
@@ -53,7 +75,22 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 				App.Logger.Errorln("Invalid metric value:", err)
 				return
 			}
-			App.Storage.RepositoryAddGaugeValue(metricName, metricValueFloat64)
+			for i := 0; i <= 3; i++ {
+				err = App.Storage.RepositoryAddGaugeValue(metricName, metricValueFloat64)
+				if err == nil {
+					break
+				} 
+				if !(retryerr.CheckErrorType(err)) || (i == 3) {
+					http.Error(rw, fmt.Sprintf("Error 500: Error while adding gauge metric %s to Storage", metricName), http.StatusInternalServerError)
+					App.Logger.Errorln("Error while adding gauge metric to Storage:", err)
+					return
+				}
+				if i == 0 {
+					time.Sleep(1 * time.Second)
+				} else {
+					time.Sleep(time.Duration(i + i + 1) * time.Second)
+				}
+			}
 		}
 
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -76,7 +113,7 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 			gz, err := gzip.NewReader(r.Body)
 			if err != nil {
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				App.Logger.Errorln("Error during unpacking the request")
+				App.Logger.Errorln("Error during unpacking the request: ", err)
 				return
 			}
 			defer gz.Close()
@@ -103,7 +140,7 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 
 		if (metricData.MType != "counter") && (metricData.MType != "gauge") {
 			http.Error(rw, fmt.Sprintf("Error 400: Invalid metric type: %s", metricData.MType), http.StatusBadRequest)
-			App.Logger.Errorln("Error 400: Invalid metric type:", metricData.MType)
+			App.Logger.Errorln("Error 400: Invalid metric type: ", metricData.MType)
 			return
 		}
 
@@ -114,20 +151,55 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 		}
 
 		if metricData.MType == "counter" {
-			App.Storage.RepositoryAddCounterValue(metricData.ID, *metricData.Delta)
+			for i := 0; i <= 3; i++ {
+				err = App.Storage.RepositoryAddCounterValue(metricData.ID, *metricData.Delta)
+				if err == nil {
+					break
+				}  
+				if !(retryerr.CheckErrorType(err)) || (i == 3) {
+					http.Error(rw, fmt.Sprintf("Error 500: Error while adding counter metric %s to Storage", metricData.ID), http.StatusInternalServerError)
+					App.Logger.Errorln("Error while adding counter metric to Storage:", err)
+					return
+				}
+				if i == 0 {
+					time.Sleep(1 * time.Second)
+				} else {
+					time.Sleep(time.Duration(i + i + 1) * time.Second)
+				}
+			}
 		}
 		if metricData.MType == "gauge" {
-			App.Storage.RepositoryAddGaugeValue(metricData.ID, *metricData.Value)
+			for i := 0; i <= 3; i++ {
+				err = App.Storage.RepositoryAddGaugeValue(metricData.ID, *metricData.Value)
+				if err == nil {
+					break
+				} else if !(retryerr.CheckErrorType(err)) || (i == 3) {
+					http.Error(rw, fmt.Sprintf("Error 500: Error while adding gauge metric %s to Storage", metricData.ID), http.StatusInternalServerError)
+					App.Logger.Errorln("Error while adding gauge metric to Storage:", err)
+					return
+				} 
+				if i == 0 {
+					time.Sleep(1 * time.Second)
+				} else {
+					time.Sleep(time.Duration(i + i + 1) * time.Second)
+				}
+			}
 		}
-
-		rw.Header().Set("Content-Type", "application/json")
-		rw.WriteHeader(http.StatusOK)
 
 		metricDataBytes, err := json.Marshal(metricData)
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			App.Logger.Errorln("Error during serialization")
 		}
+		if App.SecretKey != "" {
+			h := hmac.New(sha256.New, []byte(App.SecretKey))
+			h.Write(metricDataBytes)
+			signCheck := h.Sum(nil)
+			rw.Header().Set("HashSHA256", hex.EncodeToString(signCheck))
+		}
+
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusOK)
 
 		rw.Write(metricDataBytes)
 
@@ -139,7 +211,24 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 	htmlMetricsfunc := func(rw http.ResponseWriter, r *http.Request) {
 
 		builder := strings.Builder{}
-		allGaugeMetrics := App.Storage.GetAllGaugeMetrics()
+		var allGaugeMetrics map[string]float64
+		var err error
+		for i := 0; i <= 3; i++ {
+			allGaugeMetrics, err = App.Storage.GetAllGaugeMetrics()
+			if err == nil {
+				break
+			} 
+			if !(retryerr.CheckErrorType(err)) || (i == 3) {
+				http.Error(rw, "Error 500: Error while getting all gauge metrics", http.StatusInternalServerError)
+				App.Logger.Errorln(err)
+				return
+			}
+			if i == 0 {
+				time.Sleep(1 * time.Second)
+			} else {
+				time.Sleep(time.Duration(i + i + 1) * time.Second)
+			}
+		}
 		for key, value := range allGaugeMetrics {
 			builder.WriteString(key)
 			builder.WriteString(": ")
@@ -149,7 +238,24 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 		gaugeResult := builder.String()
 
 		builder = strings.Builder{}
-		allCounterMetrics := App.Storage.GetAllCounterMetrics()
+		var allCounterMetrics map[string]int64
+		for i := 0; i <= 3; i++ {
+			allCounterMetrics, err = App.Storage.GetAllCounterMetrics()
+			if err == nil {
+				break
+			} else if !(retryerr.CheckErrorType(err)) {
+				http.Error(rw, "Error 500: Error while getting all counter metrics", http.StatusInternalServerError)
+				App.Logger.Errorln(err)
+				return
+			} else if retryerr.CheckErrorType(err) {
+				if i == 0 {
+					time.Sleep(1 * time.Second)
+				} else {
+					time.Sleep(time.Duration(i + i + 1) * time.Second)
+				}
+			}
+		}
+
 		for key, value := range allCounterMetrics {
 			builder.WriteString(key)
 			builder.WriteString(": ")
@@ -188,23 +294,48 @@ func (App *Application) GetMetricPath() http.HandlerFunc {
 			return
 		}
 		metricRes := ""
-
+		var err error
 		if metricType == "counter" {
-			metricValue, err := App.Storage.GetCounterValueByName(metricName)
-			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
-				App.Logger.Errorln("Error in CounterStorage:", err)
-				return
+			var metricValue int64
+			for i := 0; i <= 3; i++ {
+				metricValue, err = App.Storage.GetCounterValueByName(metricName)
+				if err == nil {
+					break
+				} else if !(retryerr.CheckErrorType(err)) {
+					http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
+					App.Logger.Errorln("Error in CounterStorage: ", err)
+					return
+				} else if retryerr.CheckErrorType(err) {
+					if i == 0 {
+						time.Sleep(1 * time.Second)
+					} else {
+						time.Sleep(time.Duration(i + i + 1) * time.Second)
+					}
+				}
+
 			}
+
 			builder := strings.Builder{}
 			builder.WriteString(strconv.FormatInt(metricValue, 10))
 			metricRes = builder.String()
 		} else if metricType == "gauge" {
-			metricValue, err := App.Storage.GetGaugeValueByName(metricName)
-			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
-				App.Logger.Errorln("Error in GaugeStorage:", err)
-				return
+			var metricValue float64
+			for i := 0; i <= 3; i++ {
+				metricValue, err = App.Storage.GetGaugeValueByName(metricName)
+				if err == nil {
+					break
+				}
+				if !(retryerr.CheckErrorType(err)) {
+					http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
+					App.Logger.Errorln("Error in GaugeStorage: ", err)
+					return
+				}
+
+				if i == 0 {
+					time.Sleep(1 * time.Second)
+				} else {
+					time.Sleep(time.Duration(i + i + 1) * time.Second)
+				}
 			}
 			metricRes = strconv.FormatFloat(metricValue, 'f', -1, 64)
 		} else {
@@ -214,10 +345,39 @@ func (App *Application) GetMetricPath() http.HandlerFunc {
 		}
 
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		if App.SecretKey != "" {
+			h := hmac.New(sha256.New, []byte(App.SecretKey))
+			h.Write([]byte(metricRes))
+			signCheck := h.Sum(nil)
+			rw.Header().Set("HashSHA256", hex.EncodeToString(signCheck))
+		}
+
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte(metricRes))
 
 	}
+}
+
+func (App *Application) CheckStorageConnection() http.HandlerFunc {
+	checkStorageConnectionfunc := func(rw http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+
+		defer cancel()
+		storageAvailable := App.Storage.CheckConnection(ctx)
+		if storageAvailable != nil {
+			http.Error(rw, storageAvailable.Error(), http.StatusInternalServerError)
+			App.Logger.Errorln("Error during Storage connection:", storageAvailable)
+		}
+		switch ctx.Err() {
+		case context.Canceled:
+			http.Error(rw, storageAvailable.Error(), http.StatusInternalServerError)
+			App.Logger.Errorln("Error during Storage connection:", storageAvailable)
+		default:
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusOK)
+		}
+	}
+	return http.HandlerFunc(checkStorageConnectionfunc)
 }
 
 func (App *Application) GetMetric() http.HandlerFunc {
@@ -243,19 +403,44 @@ func (App *Application) GetMetric() http.HandlerFunc {
 			return
 		}
 		if metricData.MType == "counter" {
-			metricValue, err := App.Storage.GetCounterValueByName(metricData.ID)
-			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
-				App.Logger.Errorln("Error in CounterStorage:", err)
-				return
+			var metricValue int64
+			for i := 0; i <= 3; i++ {
+				metricValue, err = App.Storage.GetCounterValueByName(metricData.ID)
+				if err == nil {
+					break
+				} 
+				
+				if !(retryerr.CheckErrorType(err)) || (i == 3) {
+					http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
+					App.Logger.Errorln("Error in CounterStorage:", err)
+					return
+				} 
+				
+				if i == 0 {
+					time.Sleep(1 * time.Second)
+				} else {
+					time.Sleep(time.Duration(i + i + 1) * time.Second)
+				}
 			}
 			metricData.Delta = &metricValue
 		} else if metricData.MType == "gauge" {
-			metricValue, err := App.Storage.GetGaugeValueByName(metricData.ID)
-			if err != nil {
-				http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
-				App.Logger.Errorln("Error in GaugeStorage:", err)
-				return
+			var metricValue float64
+			for i := 0; i <= 3; i++ {
+				metricValue, err = App.Storage.GetGaugeValueByName(metricData.ID)
+				if err == nil {
+					break
+				} 
+				if !(retryerr.CheckErrorType(err)) || (i == 3) {
+					http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
+					App.Logger.Errorln("Error in GaugeStorage:", err)
+					return
+				}
+
+				if i == 0 {
+					time.Sleep(1 * time.Second)
+				} else {
+					time.Sleep(time.Duration(i + i + 1) * time.Second)
+				}
 			}
 			metricData.Value = &metricValue
 		} else {
@@ -269,10 +454,88 @@ func (App *Application) GetMetric() http.HandlerFunc {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			App.Logger.Errorln("Error during serialization")
 		}
+
+		if App.SecretKey != "" {
+			h := hmac.New(sha256.New, []byte(App.SecretKey))
+			h.Write(metricDataBytes)
+			signCheck := h.Sum(nil)
+			rw.Header().Set("HashSHA256", hex.EncodeToString(signCheck))
+		}
 		rw.Header().Set("Content-Type", "application/json")
 		rw.WriteHeader(http.StatusOK)
 		rw.Write(metricDataBytes)
 
 	}
 	return http.HandlerFunc(getMetricfunc)
+}
+
+func (App *Application) UpdateAllValues() http.HandlerFunc {
+	updateAllValuesfunc := func(rw http.ResponseWriter, r *http.Request) {
+		metricDataList := make([]data.Metrics, 100)
+		var buf bytes.Buffer
+		var err error
+
+		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+			gz, err := gzip.NewReader(r.Body)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				App.Logger.Errorln("Error during unpacking the request: ", err)
+				return
+			}
+			defer gz.Close()
+
+			_, err = buf.ReadFrom(gz)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+		} else {
+			_, err = buf.ReadFrom(r.Body)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusBadRequest)
+				App.Logger.Errorln("Bad request catched:", err)
+				return
+			}
+		}
+
+		if err := json.Unmarshal(buf.Bytes(), &metricDataList); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			App.Logger.Errorln("Error during deserialization:", err)
+			return
+		}
+
+		for _, metric := range metricDataList {
+			if metric.ID == "" {
+				http.Error(rw, "Error 404: Metric name was not found", http.StatusNotFound)
+				App.Logger.Errorln("Metric name was not found")
+				return
+			}
+			if (metric.MType != "counter") && (metric.MType != "gauge") {
+				http.Error(rw, fmt.Sprintf("Error 400: Metric with name %s invalid metric type : %s", metric.ID, metric.MType), http.StatusBadRequest)
+				App.Logger.Errorln(fmt.Sprintf("Metric with name %s invalid metric type : %s", metric.ID, metric.MType))
+				return
+			}
+		}
+
+		for i := 0; i <= 3; i++ {
+			err = App.Storage.RepositoryAddAllValues(metricDataList)
+			if err == nil {
+				break
+			}  
+			if !(retryerr.CheckErrorType(err)) || (i == 3) {
+				http.Error(rw, fmt.Sprintf("Error while adding all metrics to storage: %s", err), http.StatusInternalServerError)
+				App.Logger.Errorln("Error while adding all metrics to storage", err)
+				return
+			}
+
+			if i == 0 {
+				time.Sleep(1 * time.Second)
+			} else {
+					time.Sleep(time.Duration(i + i + 1) * time.Second)
+			}
+		}
+	}
+
+	return http.HandlerFunc(updateAllValuesfunc)
 }

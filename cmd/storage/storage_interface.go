@@ -2,16 +2,18 @@ package storage
 
 import (
 	"context"
+
+	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 )
 
 type RepositoryInterface interface {
 	Init(restore bool, fileStore string, backupTime int) error
 	// add metric name and value
-	RepositoryAddCounterValue(metricName string, metricValue int64)
-	RepositoryAddGaugeValue(metricName string, metricValue float64)
+	RepositoryAddCounterValue(metricName string, metricValue int64) error
+	RepositoryAddGaugeValue(metricName string, metricValue float64) error
 
 	// add value
-	RepositoryAddValue(metricName string, metricValue int64)
+	RepositoryAddValue(metricName string, metricValue int64) error
 
 	// get metric value by name
 	GetCounterValueByName(metricName string) (int64, error)
@@ -21,8 +23,10 @@ type RepositoryInterface interface {
 	CheckConnection(ctx context.Context) error
 
 	// return all gauge metrics
-	GetAllGaugeMetrics() map[string]float64
+	GetAllGaugeMetrics() (map[string]float64, error)
 
 	// return all counter metrics
-	GetAllCounterMetrics() map[string]int64
+	GetAllCounterMetrics() (map[string]int64, error)
+
+	RepositoryAddAllValues(metrics []data.Metrics) error
 }

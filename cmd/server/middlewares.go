@@ -1,17 +1,21 @@
 package main
 
 import (
+	"bytes"
 	"compress/gzip"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 )
 
-func (App *Application) WithLoggerZipper(h http.Handler) http.HandlerFunc {
+func (App *Application) MiddlewareZipper(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		uri := r.RequestURI
-		method := r.Method
-
 		responseData := &ResponseData{
 			status: 0,
 			size:   0,
@@ -38,6 +42,27 @@ func (App *Application) WithLoggerZipper(h http.Handler) http.HandlerFunc {
 			}
 		}
 
+		next(&zlw, r)
+
+	}
+}
+
+func (App *Application) MiddlewareLogger(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		uri := r.RequestURI
+		method := r.Method
+
+		responseData := &ResponseData{
+			status: 0,
+			size:   0,
+		}
+
+		zlw := LoggingZipperResponseWriter{
+			w,
+			w,
+			responseData,
+		}
+
 		start := time.Now()
 
 		h.ServeHTTP(&zlw, r)
@@ -52,4 +77,60 @@ func (App *Application) WithLoggerZipper(h http.Handler) http.HandlerFunc {
 		)
 
 	}
+}
+
+func (App *Application) MiddlewareHash(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		responseData := &ResponseData{
+			status: 0,
+			size:   0,
+		}
+
+		zlw := LoggingZipperResponseWriter{
+			w,
+			w,
+			responseData,
+		}
+
+		body, err := io.ReadAll(r.Body)
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			App.Logger.Errorln("Error during reading request body")
+			return
+		}
+
+		// Replace the body with a new reader after reading from the original
+		r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+		sign := r.Header.Get("HashSHA256")
+		if sign != "" {
+			signDecode, err := hex.DecodeString(sign)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				App.Logger.Errorln("Error during HashSHA256 decoding")
+			}
+
+			h := hmac.New(sha256.New, []byte(App.SecretKey))
+			h.Write(body)
+			signCheck := h.Sum(nil)
+
+			if !(hmac.Equal(signDecode, signCheck)) {
+				http.Error(w, "Error while checking HashSHA256 of the request", http.StatusBadRequest)
+				App.Logger.Errorln("HashSHA256 is incorrect")
+				return
+			}
+		}
+
+		next(&zlw, r)
+	}
+}
+
+// ... - variardic parameter, that can get any amount of parameters of type data.Middleware
+func (App *Application) MiddlewareChain(h http.HandlerFunc, m ...data.Middleware) http.HandlerFunc {
+	for _, wrap := range m {
+		h = wrap(h)
+	}
+
+	return h
 }
