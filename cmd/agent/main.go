@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"flag"
-	"fmt"
 	"math/rand"
 	"os"
 	"runtime"
@@ -38,8 +37,29 @@ func init() {
 	limitServerRequestsFlag = flag.Int("l", 1, "limit of requests to server")
 }
 
+func MakeMetrics(mapMetrics map[string]float64, pollCount int64) []data.Metrics {
+	metrics := make([]data.Metrics, len(mapMetrics)+1)
+	i := 0
+
+	for metricName, metricValue := range mapMetrics {
+		metricData := data.Metrics{}
+		metricData.ID = metricName
+		metricData.MType = "gauge"
+		metricData.Value = &metricValue
+		metrics[i] = metricData
+		i += 1
+	}
+	metricData := data.Metrics{}
+	metricData.ID = "PollCount"
+	metricData.MType = "counter"
+	metricData.Delta = &pollCount
+	metrics[i] = metricData
+
+	return metrics
+}
+
 // Alternative variant of structure processing: variable := float64(memStats.Alloc)
-func GetMetrics(chanPollCount chan int64, chanMetrics chan map[string]float64, timer time.Duration) {
+func GetMetrics(chanSend chan int64, chanMetrics chan []data.Metrics, timer time.Duration) {
 	var memStats runtime.MemStats
 	mapMetrics := make(map[string]float64)
 	var pollCount int64
@@ -75,14 +95,13 @@ func GetMetrics(chanPollCount chan int64, chanMetrics chan map[string]float64, t
 		mapMetrics["RandomValue"] = rand.Float64()
 
 		select {
-		case signal, ok := <-chanPollCount:
+		case signal, ok := <-chanSend:
 			if !ok {
 				return
 			}
 			if signal == -1 {
-				fmt.Println("SEND POLLCOUNT RUNTIME")
-				chanPollCount <- pollCount
-				chanMetrics <- mapMetrics
+				metrics := MakeMetrics(mapMetrics, pollCount)
+				chanMetrics <- metrics
 			} else {
 				pollCount = signal
 			}
@@ -93,7 +112,7 @@ func GetMetrics(chanPollCount chan int64, chanMetrics chan map[string]float64, t
 	}
 }
 
-func GetMetricsUtil(chanPollCount chan int64, chanMetrics chan map[string]float64, timer time.Duration) {
+func GetMetricsUtil(chanSend chan int64, chanMetrics chan []data.Metrics, timer time.Duration) {
 	var memStats mem.VirtualMemoryStat
 	mapMetrics := make(map[string]float64)
 	var pollCount int64
@@ -107,14 +126,13 @@ func GetMetricsUtil(chanPollCount chan int64, chanMetrics chan map[string]float6
 		mapMetrics["FreeMemory"] = float64(freeMemory)
 		mapMetrics["CPUutilization1"] = CPUutilization1[0]
 		select {
-		case signal, ok := <-chanPollCount:
+		case signal, ok := <-chanSend:
 			if !ok {
 				return
 			}
 			if signal == -1 {
-				fmt.Println("SEND POLLCOUNT UTIL")
-				chanPollCount <- pollCount
-				chanMetrics <- mapMetrics
+				metrics := MakeMetrics(mapMetrics, pollCount)
+				chanMetrics <- metrics
 			} else {
 				pollCount = signal
 			}
@@ -144,7 +162,7 @@ func main() {
 	resultChannel := make(chan error)
 	defer close(chansPollCount[0])
 	defer close(chansPollCount[1])
-	chanMetrics := make(chan map[string]float64, 10)
+	chanMetrics := make(chan []data.Metrics, 10)
 
 	client := resty.New()
 
@@ -225,26 +243,7 @@ func main() {
 				chanPollCount := chansPollCount[i]
 
 				go func() {
-					fmt.Println("POLLCOUNT")
-					pollCount := <-chanPollCount
-					fmt.Println("MAP METRICS")
-					mapMetrics := <-chanMetrics
-					metrics := make([]data.Metrics, len(mapMetrics)+1)
-					i := 0
-					for metricName, metricValue := range mapMetrics {
-						metricData := data.Metrics{}
-						metricData.ID = metricName
-						metricData.MType = "gauge"
-						metricData.Value = &metricValue
-						metrics[i] = metricData
-						i += 1
-					}
-					metricData := data.Metrics{}
-					metricData.ID = "PollCount"
-					metricData.MType = "counter"
-					metricData.Delta = &pollCount
-					metrics[i] = metricData
-
+					metrics := <-chanMetrics
 					var sign []byte
 
 					compressedMetrics, err := data.Compress(&metrics)
@@ -277,8 +276,7 @@ func main() {
 								Post(requestString)
 						}
 						if err == nil {
-							pollCount = 0
-							chanPollCount <- pollCount
+							chanPollCount <- 0
 						}
 						if !(retryerr.CheckErrorType(err)) || (i == 3) {
 							break
