@@ -19,7 +19,6 @@ import (
 
 	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 	retryerr "github.com/Tanya1515/metrics-collector.git/cmd/errors"
-	
 )
 
 var (
@@ -31,7 +30,7 @@ var (
 )
 
 func init() {
-	reportIntervalFlag = flag.Int("r", 0, "time duration for sending metrics")
+	reportIntervalFlag = flag.Int("r", 10, "time duration for sending metrics")
 	pollIntervalFlag = flag.Int("p", 2, "time duration for getting metrics")
 	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
 	secretKeyFlag = flag.String("k", "", "secret key for creating hash")
