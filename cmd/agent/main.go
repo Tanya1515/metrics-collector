@@ -124,6 +124,11 @@ func GetMetricsUtil(chanSend chan int64, chanMetrics chan []data.Metrics, timer 
 
 		mapMetrics["TotalMemory"] = float64(totalMemory)
 		mapMetrics["FreeMemory"] = float64(freeMemory)
+		for key, value := range CPUutilization1 {
+			cpuNum := strconv.Itoa(key)
+			metricName := "CPUutilization" + cpuNum
+			mapMetrics[metricName] = value
+		}
 		mapMetrics["CPUutilization1"] = CPUutilization1[0]
 		select {
 		case signal, ok := <-chanSend:
