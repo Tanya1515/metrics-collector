@@ -1,6 +1,6 @@
 module github.com/Tanya1515/metrics-collector.git
 
-go 1.23.7
+go 1.22
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
