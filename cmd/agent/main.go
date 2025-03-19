@@ -129,7 +129,7 @@ func GetMetricsUtil(chanSend chan int64, chanMetrics chan []data.Metrics, timer 
 			metricName := "CPUutilization" + cpuNum
 			mapMetrics[metricName] = value
 		}
-		mapMetrics["CPUutilization1"] = CPUutilization1[0]
+
 		select {
 		case signal, ok := <-chanSend:
 			if !ok {
