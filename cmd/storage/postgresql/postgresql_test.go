@@ -142,3 +142,9 @@ func (ts *PostgresTestSuite) TestRepositoryAddValue() {
 
 	ts.Contains(counterMetrics, "TestCounter")
 }
+
+func (ts *PostgresTestSuite) TestCheckConnection() {
+	newctx, cancel := context.WithTimeout(context.Background(), ts.QueryTimeout)
+	defer cancel()
+	ts.NoError(ts.cfg.CheckConnection(newctx))
+}
