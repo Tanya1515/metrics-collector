@@ -6,6 +6,41 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestGetMetricsUtil(t *testing.T) {
+	
+}
+
+func TestGetMetrics(t *testing.T) {
+
+}
+
+func TestMakeMetrics(t *testing.T) {
+	tests := []struct {
+		name       string
+		mapMetrics map[string]float64
+		pollCount  int64
+	}{
+		{
+			name:       "test: make map with pollCount 10",
+			mapMetrics: map[string]float64{"Alloc": 10.5, "BuckHashSys": 11, "Frees": 0.3, "GCCPUFraction": 5.7},
+			pollCount:  10,
+		},
+		{
+			name:       "test: make map with pollCount 125",
+			mapMetrics: map[string]float64{"HeapIdle": 1.5, "HeapSys": 0.11, "MCacheSys": 0.4, "NumGC": 5.7},
+			pollCount:  125,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := MakeMetrics(test.mapMetrics, test.pollCount)
+			assert.Equal(t, *result[4].Delta, test.pollCount)
+		})
+	}
+
+}
+
 func TestMakeString(t *testing.T) {
 	tests := []struct {
 		name          string

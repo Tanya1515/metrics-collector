@@ -19,7 +19,7 @@ import (
 	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
 )
 
-func TestProcessRequest(t *testing.T) {
+func TestUpdateValuePath(t *testing.T) {
 
 	type httpResult struct {
 		code        int
@@ -404,3 +404,151 @@ func TestGetMetric(t *testing.T) {
 		})
 	}
 }
+
+func TestGetMetricPath(t *testing.T) {
+	type httpResult struct {
+		code        int
+		response    string
+		contentType string
+	}
+	tests := []struct {
+		name       string
+		request    string
+		metricType string
+		metricName string
+		storage    *str.MemStorage
+		result     httpResult
+	}{
+		{
+			name:       "test: Send incorrect metric type",
+			request:    "/value/",
+			metricType: "test",
+			metricName: "PollCount",
+			storage:    &str.MemStorage{},
+			result: httpResult{
+				code:        400,
+				response:    "Error 400: Invalid metric type: test\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name:       "test: Get correct counter metric",
+			request:    "/value/",
+			metricType: "counter",
+			metricName: "PollCount",
+			storage:    &str.MemStorage{},
+			result: httpResult{
+				code:        200,
+				response:    "1",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name:       "test: Get correct gauge metric",
+			request:    "/value/",
+			metricType: "gauge",
+			metricName: "BuckHashSys",
+			storage:    &str.MemStorage{},
+			result: httpResult{
+				code:        200,
+				response:    "0.1",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name:       "test: Get not existing gauge metric",
+			request:    "/value/",
+			metricType: "gauge",
+			metricName: "GaugeTest",
+			storage:    &str.MemStorage{},
+			result: httpResult{
+				code:        404,
+				response:    "Error 404: GaugeTest does not exist in gauge storage: ErrMetricExists\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name:       "test: Get not existing counter metric",
+			request:    "/value/",
+			metricType: "counter",
+			metricName: "PollCountEx",
+			storage:    &str.MemStorage{},
+			result: httpResult{
+				code:        404,
+				response:    "Error 404: PollCountEx does not exist in counter storage: ErrMetricExists\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name:       "test: Get request without metric name",
+			request:    "/value/",
+			metricType: "counter",
+			metricName: "",
+			storage:    &str.MemStorage{},
+			result: httpResult{
+				code:        404,
+				response:    "Error 404: Metric name was not found\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run("Test:", func(t *testing.T) {
+			err := test.storage.Init(false, "", 0)
+			if err != nil {
+				panic(err)
+			}
+			test.storage.RepositoryAddCounterValue("PollCount", 1)
+			test.storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
+
+			request := httptest.NewRequest(http.MethodPost, test.request, nil)
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("metricType", test.metricType)
+			rctx.URLParams.Add("metricName", test.metricName)
+			request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, rctx))
+
+			logger, err := zap.NewDevelopment()
+			if err != nil {
+				panic(err)
+			}
+
+			defer logger.Sync()
+			App := Application{Storage: test.storage, Logger: *logger.Sugar()}
+
+			w := httptest.NewRecorder()
+
+			h := http.HandlerFunc(App.GetMetricPath())
+			h(w, request)
+
+			res := w.Result()
+			assert.Equal(t, test.result.code, res.StatusCode)
+
+			defer res.Body.Close()
+			resBody, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, test.result.response, string(resBody))
+			assert.Equal(t, test.result.contentType, res.Header.Get("Content-Type"))
+		})
+	}
+
+}
+
+// func TestUpdateAllValues(t *testing.T) {
+// 	type httpResult struct {
+// 		code        int
+// 		response    string
+// 		contentType string
+// 	}
+// 	tests := []struct {
+// 		name    string
+// 		request string
+// 		metric  *data.Metrics
+// 		storage *str.MemStorage
+// 		result  httpResult
+// 	}{
+
+// 	}
+// }
