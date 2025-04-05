@@ -536,19 +536,90 @@ func TestGetMetricPath(t *testing.T) {
 
 }
 
-// func TestUpdateAllValues(t *testing.T) {
-// 	type httpResult struct {
-// 		code        int
-// 		response    string
-// 		contentType string
-// 	}
-// 	tests := []struct {
-// 		name    string
-// 		request string
-// 		metric  *data.Metrics
-// 		storage *str.MemStorage
-// 		result  httpResult
-// 	}{
+func TestUpdateAllValues(t *testing.T) {
+	var gaugeMetricValue = 1.5
 
-// 	}
-// }
+	type httpResult struct {
+		code        int
+		response    string
+		contentType string
+	}
+	tests := []struct {
+		name    string
+		request string
+		metrics []data.Metrics
+		storage *str.MemStorage
+		result  httpResult
+	}{
+		{
+			name:    "test: Add correct metrics",
+			request: "/updates/",
+			metrics: []data.Metrics{{ID: "GaugeMetric", MType: "gauge", Value: &gaugeMetricValue}},
+			storage: &str.MemStorage{},
+			result: httpResult{
+				code:        200,
+				contentType: "application/json",
+			},
+		},
+
+		{
+			name:    "test: Add metric without name",
+			request: "/updates/",
+			metrics: []data.Metrics{{ID: "", MType: "gauge", Value: &gaugeMetricValue}},
+			storage: &str.MemStorage{},
+			result: httpResult{
+				code:        404,
+				response:    "Error 404: Metric name was not found\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+
+		{
+			name:    "test: Add metric with incorrect type",
+			request: "/updates/",
+			metrics: []data.Metrics{{ID: "GaugeMetric", MType: "test", Value: &gaugeMetricValue}},
+			storage: &str.MemStorage{},
+			result: httpResult{
+				code:        400,
+				response:    "Error 400: Invalid metric type: test\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run("Test:", func(t *testing.T) {
+			err := test.storage.Init(false, "", 0)
+			if err != nil {
+				panic(err)
+			}
+			
+			var buf bytes.Buffer
+			bodyRequestEncode := json.NewEncoder(&buf)
+			err = bodyRequestEncode.Encode(test.metrics)
+			if err != nil {
+				panic(err)
+			}
+
+			request := httptest.NewRequest(http.MethodGet, test.request, &buf)
+			logger, err := zap.NewDevelopment()
+			if err != nil {
+				panic(err)
+			}
+
+			defer logger.Sync()
+			App := Application{Storage: test.storage, Logger: *logger.Sugar()}
+
+			w := httptest.NewRecorder()
+
+			h := http.HandlerFunc(App.MiddlewareZipper(App.UpdateAllValues()))
+
+			h(w, request)
+
+			res := w.Result()
+			assert.Equal(t, test.result.code, res.StatusCode)
+
+			defer res.Body.Close()
+		})
+	}
+}

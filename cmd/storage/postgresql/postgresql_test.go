@@ -63,6 +63,8 @@ func (ts *PostgresTestSuite) SetupSuite() {
 	ts.QueryTimeout = 5 * time.Second
 
 	require.NoError(ts.T(), cfg.Init(false, "", 0))
+
+	ts.T().Logf("started postgres at %s:%s", ts.cfg.Address, ts.cfg.Port)
 }
 
 // remove container with postgres

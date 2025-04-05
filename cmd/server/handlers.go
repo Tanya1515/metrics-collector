@@ -49,12 +49,12 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 				App.Logger.Errorln("Invalid metric value:", err)
 				return
 			}
-			
+
 			for i := 0; i <= 3; i++ {
 				err = App.Storage.RepositoryAddCounterValue(metricName, metricValueInt64)
 				if err == nil {
 					break
-				}  
+				}
 				if !(retryerr.CheckErrorType(err)) || (i == 3) {
 					http.Error(rw, fmt.Sprintf("Error 500: Error while adding counter metric %s to Storage", metricData.ID), http.StatusInternalServerError)
 					App.Logger.Errorln("Error while adding counter metric to Storage:", err)
@@ -63,7 +63,7 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+					time.Sleep(time.Duration(i+i+1) * time.Second)
 				}
 			}
 		}
@@ -79,7 +79,7 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 				err = App.Storage.RepositoryAddGaugeValue(metricName, metricValueFloat64)
 				if err == nil {
 					break
-				} 
+				}
 				if !(retryerr.CheckErrorType(err)) || (i == 3) {
 					http.Error(rw, fmt.Sprintf("Error 500: Error while adding gauge metric %s to Storage", metricName), http.StatusInternalServerError)
 					App.Logger.Errorln("Error while adding gauge metric to Storage:", err)
@@ -88,7 +88,7 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+					time.Sleep(time.Duration(i+i+1) * time.Second)
 				}
 			}
 		}
@@ -155,7 +155,7 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 				err = App.Storage.RepositoryAddCounterValue(metricData.ID, *metricData.Delta)
 				if err == nil {
 					break
-				}  
+				}
 				if !(retryerr.CheckErrorType(err)) || (i == 3) {
 					http.Error(rw, fmt.Sprintf("Error 500: Error while adding counter metric %s to Storage", metricData.ID), http.StatusInternalServerError)
 					App.Logger.Errorln("Error while adding counter metric to Storage:", err)
@@ -164,7 +164,7 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+					time.Sleep(time.Duration(i+i+1) * time.Second)
 				}
 			}
 		}
@@ -177,11 +177,11 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 					http.Error(rw, fmt.Sprintf("Error 500: Error while adding gauge metric %s to Storage", metricData.ID), http.StatusInternalServerError)
 					App.Logger.Errorln("Error while adding gauge metric to Storage:", err)
 					return
-				} 
+				}
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+					time.Sleep(time.Duration(i+i+1) * time.Second)
 				}
 			}
 		}
@@ -217,7 +217,7 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 			allGaugeMetrics, err = App.Storage.GetAllGaugeMetrics()
 			if err == nil {
 				break
-			} 
+			}
 			if !(retryerr.CheckErrorType(err)) || (i == 3) {
 				http.Error(rw, "Error 500: Error while getting all gauge metrics", http.StatusInternalServerError)
 				App.Logger.Errorln(err)
@@ -226,7 +226,7 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 			if i == 0 {
 				time.Sleep(1 * time.Second)
 			} else {
-				time.Sleep(time.Duration(i + i + 1) * time.Second)
+				time.Sleep(time.Duration(i+i+1) * time.Second)
 			}
 		}
 		for key, value := range allGaugeMetrics {
@@ -251,7 +251,7 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+					time.Sleep(time.Duration(i+i+1) * time.Second)
 				}
 			}
 		}
@@ -309,7 +309,7 @@ func (App *Application) GetMetricPath() http.HandlerFunc {
 					if i == 0 {
 						time.Sleep(1 * time.Second)
 					} else {
-						time.Sleep(time.Duration(i + i + 1) * time.Second)
+						time.Sleep(time.Duration(i+i+1) * time.Second)
 					}
 				}
 
@@ -334,7 +334,7 @@ func (App *Application) GetMetricPath() http.HandlerFunc {
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+					time.Sleep(time.Duration(i+i+1) * time.Second)
 				}
 			}
 			metricRes = strconv.FormatFloat(metricValue, 'f', -1, 64)
@@ -408,18 +408,18 @@ func (App *Application) GetMetric() http.HandlerFunc {
 				metricValue, err = App.Storage.GetCounterValueByName(metricData.ID)
 				if err == nil {
 					break
-				} 
-				
+				}
+
 				if !(retryerr.CheckErrorType(err)) || (i == 3) {
 					http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
 					App.Logger.Errorln("Error in CounterStorage:", err)
 					return
-				} 
-				
+				}
+
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+					time.Sleep(time.Duration(i+i+1) * time.Second)
 				}
 			}
 			metricData.Delta = &metricValue
@@ -429,7 +429,7 @@ func (App *Application) GetMetric() http.HandlerFunc {
 				metricValue, err = App.Storage.GetGaugeValueByName(metricData.ID)
 				if err == nil {
 					break
-				} 
+				}
 				if !(retryerr.CheckErrorType(err)) || (i == 3) {
 					http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
 					App.Logger.Errorln("Error in GaugeStorage:", err)
@@ -439,7 +439,7 @@ func (App *Application) GetMetric() http.HandlerFunc {
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+					time.Sleep(time.Duration(i+i+1) * time.Second)
 				}
 			}
 			metricData.Value = &metricValue
@@ -522,7 +522,7 @@ func (App *Application) UpdateAllValues() http.HandlerFunc {
 			err = App.Storage.RepositoryAddAllValues(metricDataList)
 			if err == nil {
 				break
-			}  
+			}
 			if !(retryerr.CheckErrorType(err)) || (i == 3) {
 				http.Error(rw, fmt.Sprintf("Error while adding all metrics to storage: %s", err), http.StatusInternalServerError)
 				App.Logger.Errorln("Error while adding all metrics to storage", err)
@@ -532,9 +532,12 @@ func (App *Application) UpdateAllValues() http.HandlerFunc {
 			if i == 0 {
 				time.Sleep(1 * time.Second)
 			} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+				time.Sleep(time.Duration(i+i+1) * time.Second)
 			}
 		}
+
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusOK)
 	}
 
 	return http.HandlerFunc(updateAllValuesfunc)

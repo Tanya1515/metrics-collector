@@ -4,10 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"strconv"
 	"strings"
 
+	
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 
@@ -148,4 +150,6 @@ func main() {
 		fmt.Println(err)
 		App.Logger.Fatalw(err.Error(), "event", "start server")
 	}
+
+	//http.ListenAndServe("localhost:8080", nil)
 }
