@@ -24,7 +24,7 @@ func (S *MemStorage) SaveMetrics() (err error) {
 	i := 0
 	allGaugeMetrics, err := S.GetAllGaugeMetrics()
 	if err != nil {
-		return 
+		return
 	}
 	for metricName, metricValue := range allGaugeMetrics {
 		gaugeMetric.ID = metricName
@@ -35,7 +35,7 @@ func (S *MemStorage) SaveMetrics() (err error) {
 
 	allCounterMetrics, err := S.GetAllCounterMetrics()
 	if err != nil {
-		return 
+		return
 	}
 	for metricName, metricValue := range allCounterMetrics {
 		counterMetric.ID = metricName

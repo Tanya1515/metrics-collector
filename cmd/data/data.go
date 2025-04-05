@@ -22,7 +22,6 @@ type Metrics struct {
 	Value *float64 `json:"value,omitempty"`
 }
 
-
 func Compress(metricData *[]Metrics) ([]byte, error) {
 	var b bytes.Buffer
 
