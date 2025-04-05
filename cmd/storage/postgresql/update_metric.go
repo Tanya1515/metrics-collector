@@ -59,7 +59,7 @@ func (db *PostgreSQLConnection) RepositoryAddValue(metricName string, metricValu
 
 	_, err := db.dbConn.Exec("INSERT INTO "+MetricsTableName+" (metricType, metricName, Delta) VALUES ($1,$2,$3) "+
 		" ON CONFLICT (metricName) DO"+
-		" UPDATE SET Delta = excluded.Delta WHERE metrics.metricType = excluded.metricType AND metrcis.metricName = excluded.metricName", "counter", metricName, metricValue)
+		" UPDATE SET Delta = excluded.Delta WHERE metrics.metricType = excluded.metricType AND metrics.metricName = excluded.metricName", "counter", metricName, metricValue)
 
 	if err != nil {
 		return fmt.Errorf("error during adding new counter metricValue: %w", err)
