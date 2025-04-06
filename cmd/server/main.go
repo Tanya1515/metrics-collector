@@ -1,3 +1,4 @@
+// Server is used to process http-requests and gather data from agent
 package main
 
 import (
