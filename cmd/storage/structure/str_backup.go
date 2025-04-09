@@ -9,6 +9,7 @@ import (
 	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 )
 
+// SaveMetricsAsync - function for saving metrics every 
 func (S *MemStorage) SaveMetricsAsync() {
 
 	for {
@@ -17,6 +18,7 @@ func (S *MemStorage) SaveMetricsAsync() {
 	}
 }
 
+// SaveMetrics - function for saving metrics into file asynchronously. 
 func (S *MemStorage) SaveMetrics() (err error) {
 	allMetrics := make([]data.Metrics, len(S.counterStorage)+len(S.gaugeStorage))
 	gaugeMetric := data.Metrics{ID: "", MType: "gauge"}
@@ -57,6 +59,7 @@ func (S *MemStorage) SaveMetrics() (err error) {
 	return nil
 }
 
+// Store - function for initialization in-memory storage from backup file. 
 func (S *MemStorage) Store() error {
 	allMetrics := make([]data.Metrics, len(S.counterStorage)+len(S.gaugeStorage))
 

@@ -1,4 +1,9 @@
-package main
+// Agent is used to collect metrics from runtime package,
+// such as "HeapAlloc", CPUUtilization and etc, and send
+// collected metrics to server.
+// Data is collected every 2 seconds (default meaning).
+// Data is sent every 10 seconds (default meaning).
+package agent
 
 import (
 	"crypto/hmac"
@@ -24,21 +29,26 @@ import (
 )
 
 var (
-	reportIntervalFlag      *int
-	pollIntervalFlag        *int
-	serverAddressFlag       *string
+	// ReportIntervalFlag - flag for setting up delay for sending metrics to server
+	ReportIntervalFlag *int
+	// PollIntervalFlag - flag for setting up delay for collecting metrics
+	PollIntervalFlag *int
+	// serverAddressFlag - flag for setting up server address for sending metrics
+	serverAddressFlag *string
+	// secretKeyFlag - flag for secret key for
 	secretKeyFlag           *string
 	limitServerRequestsFlag *int
 )
 
 func init() {
-	reportIntervalFlag = flag.Int("r", 10, "time duration for sending metrics")
-	pollIntervalFlag = flag.Int("p", 2, "time duration for getting metrics")
+	ReportIntervalFlag = flag.Int("r", 10, "time duration for sending metrics")
+	PollIntervalFlag = flag.Int("p", 2, "time duration for getting metrics")
 	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
 	secretKeyFlag = flag.String("k", "", "secret key for creating hash")
 	limitServerRequestsFlag = flag.Int("l", 1, "limit of requests to server")
 }
 
+// MakeMetrics - make list of data.Metrics from map.
 func MakeMetrics(mapMetrics map[string]float64, pollCount int64) []data.Metrics {
 	metrics := make([]data.Metrics, len(mapMetrics)+1)
 	i := 0
@@ -60,7 +70,7 @@ func MakeMetrics(mapMetrics map[string]float64, pollCount int64) []data.Metrics 
 	return metrics
 }
 
-// Alternative variant of structure processing: variable := float64(memStats.Alloc)
+// GetMetrics - function, that collects all metrics from runtime library
 func GetMetrics(chanSend chan int64, chanMetrics chan []data.Metrics, timer time.Duration) {
 	var memStats runtime.MemStats
 	mapMetrics := make(map[string]float64)
@@ -114,6 +124,7 @@ func GetMetrics(chanSend chan int64, chanMetrics chan []data.Metrics, timer time
 	}
 }
 
+// GetMetricsUtil - function, that collects total/free memory and utilizatin of every cpu. 
 func GetMetricsUtil(chanSend chan int64, chanMetrics chan []data.Metrics, timer time.Duration) {
 	var memStats mem.VirtualMemoryStat
 	mapMetrics := make(map[string]float64)
@@ -151,6 +162,7 @@ func GetMetricsUtil(chanSend chan int64, chanMetrics chan []data.Metrics, timer 
 
 }
 
+// MakeString - function, that makes request-string for sending metrics to server.
 func MakeString(serverAddress string) string {
 	builder := strings.Builder{}
 	builder.WriteString("http://")
@@ -193,7 +205,7 @@ func main() {
 		serverAddress = *serverAddressFlag
 	}
 
-	reportInt := *reportIntervalFlag
+	reportInt := *ReportIntervalFlag
 	reportInterval, reportIntExists := os.LookupEnv("REPORT_INTERVAL")
 	if reportIntExists {
 		reportInt, err = strconv.Atoi(reportInterval)
@@ -202,7 +214,7 @@ func main() {
 		}
 	}
 
-	pollInt := *pollIntervalFlag
+	pollInt := *PollIntervalFlag
 	pollInterval, pollIntervalExist := os.LookupEnv("POLL_INTERVAL")
 	if pollIntervalExist {
 		pollInt, err = strconv.Atoi(pollInterval)

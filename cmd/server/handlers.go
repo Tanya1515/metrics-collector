@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"bytes"
@@ -21,6 +21,8 @@ import (
 	retryerr "github.com/Tanya1515/metrics-collector.git/cmd/errors"
 )
 
+// UpdateValuePath - handler, that updates metric in PostgreSQL or in-memory storage.
+// The function gets values from http-request as {metricType}/{metricName}/{metricValue}.
 func (App *Application) UpdateValuePath() http.HandlerFunc {
 	updateValuefunc := func(rw http.ResponseWriter, r *http.Request) {
 		var metricData data.Metrics
@@ -103,6 +105,8 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 	return http.HandlerFunc(updateValuefunc)
 }
 
+// UpdateValue - handler, that updates metric in PostgreSQL or in-memory storage.
+// The function gets all data from request body.
 func (App *Application) UpdateValue() http.HandlerFunc {
 	updateValuefunc := func(rw http.ResponseWriter, r *http.Request) {
 		var metricData data.Metrics
@@ -207,6 +211,7 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 	return http.HandlerFunc(updateValuefunc)
 }
 
+// HTMLMetrics - handler, that processes metrics from PostgreSQL or in-memory storage and display them in html-formet.
 func (App *Application) HTMLMetrics() http.HandlerFunc {
 	htmlMetricsfunc := func(rw http.ResponseWriter, r *http.Request) {
 
@@ -283,6 +288,8 @@ Gauge metrics:
 	return http.HandlerFunc(htmlMetricsfunc)
 }
 
+// GetMetricPath - handler, that retrieve metrics value from PostgreSQL or in-memory storage and return the value.
+// The function gets all metric type and name from URL-path.
 func (App *Application) GetMetricPath() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		metricType := chi.URLParam(r, "metricType")
@@ -358,6 +365,8 @@ func (App *Application) GetMetricPath() http.HandlerFunc {
 	}
 }
 
+// CheckStorageConnection - handler, that checks if connection to PosthreSQL is alive.
+// The function accepts /ping request and return 200, if everything is ok.
 func (App *Application) CheckStorageConnection() http.HandlerFunc {
 	checkStorageConnectionfunc := func(rw http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -380,6 +389,8 @@ func (App *Application) CheckStorageConnection() http.HandlerFunc {
 	return http.HandlerFunc(checkStorageConnectionfunc)
 }
 
+// GetMetric - handler, that retrieve metrics value from PostgreSQL or in-memory storage and return the value.
+// The function gets all data about metrics from request body.
 func (App *Application) GetMetric() http.HandlerFunc {
 	getMetricfunc := func(rw http.ResponseWriter, r *http.Request) {
 		metricData := data.Metrics{}
@@ -469,6 +480,7 @@ func (App *Application) GetMetric() http.HandlerFunc {
 	return http.HandlerFunc(getMetricfunc)
 }
 
+// UpdateAllValues - handler, that updates all values. The function works with pool of data.
 func (App *Application) UpdateAllValues() http.HandlerFunc {
 	updateAllValuesfunc := func(rw http.ResponseWriter, r *http.Request) {
 		metricDataList := make([]data.Metrics, 100)

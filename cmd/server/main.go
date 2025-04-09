@@ -1,5 +1,7 @@
-// Server is used to process http-requests and gather data from agent
-package main
+// Server is used to process http-requests and gather data from agent.
+// Processed data can be saved to in-memory storage or to PostgreSQL database.
+// Processed data consists of data of runtime package
+package server
 
 import (
 	"flag"
@@ -20,9 +22,13 @@ import (
 	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 )
 
+// Application - data type to describe the server work
 type Application struct {
-	Storage   storage.RepositoryInterface
-	Logger    zap.SugaredLogger
+	// Storage - object interface for saving data.
+	Storage storage.RepositoryInterface
+	// Logger - logger for saving info about all events in the application.
+	Logger zap.SugaredLogger
+	// SecretKey - key for decrypting incoming data
 	SecretKey string
 }
 

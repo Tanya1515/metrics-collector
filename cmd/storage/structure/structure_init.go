@@ -9,6 +9,7 @@ import (
 
 var errorMetricExists = errors.New("ErrMetricExists")
 
+// MemStorage - data structure for describing in-memory storage 
 type MemStorage struct {
 	counterStorage map[string]int64
 	gaugeStorage   map[string]float64
