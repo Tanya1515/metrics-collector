@@ -2,16 +2,66 @@ package main
 
 import (
 	"testing"
+	"time"
 
+	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetMetricsUtil(t *testing.T) {
-	
+	chanSend := make(chan int64)
+	chanMetrics := make(chan []data.Metrics)
+	result := make([]string, 3)
+
+	test := struct {
+		name  string
+		timer time.Duration
+	}{
+		name:  "test: collect metrics",
+		timer: 1,
+	}
+
+	t.Run(test.name, func(t *testing.T) {
+		go GetMetricsUtil(chanSend, chanMetrics, test.timer)
+		chanSend <- -1
+		metrics := <-chanMetrics
+
+		for _, metric := range metrics {
+			result = append(result, metric.ID)
+		}
+		assert.Contains(t, result, "TotalMemory")
+		assert.Contains(t, result, "FreeMemory")
+		assert.Contains(t, result, "CPUutilization1")
+	})
 }
 
 func TestGetMetrics(t *testing.T) {
+	chanSend := make(chan int64)
+	chanMetrics := make(chan []data.Metrics)
+	result := make([]string, 3)
 
+	test := struct {
+		name  string
+		timer time.Duration
+	}{
+		name:  "test: collect metrics",
+		timer: 1,
+	}
+
+	t.Run(test.name, func(t *testing.T) {
+		go GetMetrics(chanSend, chanMetrics, test.timer)
+		chanSend <- -1
+		metrics := <-chanMetrics
+
+		for _, metric := range metrics {
+			result = append(result, metric.ID)
+		}
+		assert.Contains(t, result, "TotalAlloc")
+		assert.Contains(t, result, "RandomValue")
+		assert.Contains(t, result, "HeapReleased")
+		assert.Contains(t, result, "Lookups")
+		assert.Contains(t, result, "MCacheInuse")
+	})
 }
 
 func TestMakeMetrics(t *testing.T) {

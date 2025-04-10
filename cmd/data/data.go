@@ -28,21 +28,21 @@ func Compress(metricData *[]Metrics) ([]byte, error) {
 
 	w, err := gzip.NewWriterLevel(&b, gzip.BestCompression)
 	if err != nil {
-		return nil, fmt.Errorf("failed init compress writer: %v", err)
+		return nil, fmt.Errorf("failed init compress writer: %w", err)
 	}
 
 	metricDataBytes, err := json.Marshal(metricData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to compress data: %v", err)
+		return nil, fmt.Errorf("failed to marshal data: %w", err)
 	}
 	_, err = w.Write(metricDataBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed write data to compress temporary buffer: %v", err)
+		return nil, fmt.Errorf("failed write data to compress temporary buffer: %w", err)
 	}
 
 	err = w.Close()
 	if err != nil {
-		return nil, fmt.Errorf("failed compress data: %v", err)
+		return nil, fmt.Errorf("failed compress data: %w", err)
 	}
 
 	return b.Bytes(), nil
