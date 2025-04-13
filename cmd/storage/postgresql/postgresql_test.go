@@ -108,11 +108,11 @@ func (ts *PostgresTestSuite) TestRepositoryAddCounterValue() {
 }
 
 func (ts *PostgresTestSuite) TestRepositoryAddAllValues() {
-	metrics := make([]data.Metrics, 3)
+	metrics := make([]data.Metrics, 2)
 	var testCounterAllDelta int64 = 101
 	var testGaugeAllValue float64 = 101.101
-	metrics[1] = data.Metrics{ID: "TestCounterAll", MType: "counter", Delta: &testCounterAllDelta}
-	metrics[2] = data.Metrics{ID: "TestGaugeAll", MType: "gauge", Value: &testGaugeAllValue}
+	metrics[0] = data.Metrics{ID: "TestCounterAll", MType: "counter", Delta: &testCounterAllDelta}
+	metrics[1] = data.Metrics{ID: "TestGaugeAll", MType: "gauge", Value: &testGaugeAllValue}
 
 	ts.NoError(ts.cfg.RepositoryAddAllValues(metrics))
 
