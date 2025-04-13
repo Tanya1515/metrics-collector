@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 
@@ -145,11 +144,12 @@ func main() {
 		r.Get("/ping", App.MiddlewareChain(App.CheckStorageConnection(), commonMiddlewares...))
 	})
 
+	go http.ListenAndServe("localhost:8081", nil)
+
 	err = http.ListenAndServe(serverAddress, r)
 	if err != nil {
 		fmt.Println(err)
 		App.Logger.Fatalw(err.Error(), "event", "start server")
 	}
 
-	//http.ListenAndServe("localhost:8080", nil)
 }

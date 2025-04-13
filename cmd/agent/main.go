@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"flag"
 	"math/rand"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"runtime"
 	"strconv"
@@ -228,7 +230,9 @@ func main() {
 	go GetMetricsUtil(chansPollCount[1], chanMetrics, time.Duration(pollInt))
 
 	sem := make(chan struct{}, limitRequests)
-
+	go func() {
+		http.ListenAndServe("localhost:8085", nil)
+	}()
 	for {
 		select {
 		case result := <-resultChannel:
