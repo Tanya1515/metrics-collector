@@ -48,9 +48,15 @@ var (
 	restoreFlag       *bool
 	postgreSQLFlag    *string
 	secretKeyFlag     *string
+	buildVersion      string = "N/A"
+	buildDate         string = "N/A"
+	buildCommit       string = "N/A"
 )
 
 func main() {
+	fmt.Println("Build version: ", buildVersion)
+	fmt.Println("Build date: ", buildDate)
+	fmt.Println("Build commit: ", buildCommit)
 	var Storage storage.RepositoryInterface
 
 	flag.Parse()
