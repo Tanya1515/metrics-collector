@@ -1,4 +1,25 @@
-// подключить два публичных анализатора и описать документацию
+// Multichecker is used to analyze code and find missprints, some simple errors. 
+// Multichecker consists of several connected analyzers: 
+// 1. appends - Analyzer that detects if there is only one variable in append.
+// 2. errorsas - Analyzer that checks that the second argument to errors.As is a pointer to a type implementing error.
+// 3. httpresponse - Analyzer that checks for mistakes using HTTP responses.
+// 4. nilfunc - Analyzer that checks for useless comparisons against nil.
+// 5. printf - Analyzer that checks consistency of Printf format strings and arguments.
+// 6. shadow - Analyzer that checks for shadowed variables. 
+// 7. unmarshal - Analyzer that checks for passing non-pointer or non-interface types to unmarshal and decode functions.
+// 8. unreachable - Analyzer that checks for unreachable code.
+// 9. staticcheck  - open source static analyzator with different types of checks.  
+// 10. staticcheck ST1000 - Analyzer, that checks for unusing variables in code.
+// 11. staticcheck QF1003 - Analyzer, that checks for unusing imports. 
+// 12. ExitCheckAnalyzer - my static analyzator for checking if main contains os.Exit call.
+// 13. staticcheck SA - Analyzer, that checks with tests, unusefull or unreachable code, efficiency problems and etc.
+// 14. ineffassign - Analyzer, that checks for ineffective assignment.
+// 15. nilerr - Analyzer, that checks cases when function returns nil as an error and nil as another varibles. 
+
+// For running multichecker do the following steps: 
+// a) go from the project root into directory staticlint.
+// b) run 'go build' for building the multichecker. As a result binary file with name staticlint will be in the directory.
+// c) run the binary file with path to processing directory or file: ./staticlint ../server.
 
 package main
 
