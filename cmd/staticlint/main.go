@@ -1,5 +1,5 @@
 // подключить два публичных анализатора и описать документацию
-// проверить, что мой код проходит все проверки подключенных анализаторов
+
 package main
 
 import (
@@ -16,13 +16,11 @@ import (
 	"golang.org/x/tools/go/analysis/passes/structtag"
 	"golang.org/x/tools/go/analysis/passes/unmarshal"
 	"golang.org/x/tools/go/analysis/passes/unreachable"
-
 	"honnef.co/go/tools/staticcheck"
-)
 
-type Analyzer struct {
-	Analyzer *analysis.Analyzer
-}
+	"github.com/gordonklaus/ineffassign/pkg/ineffassign"
+	"github.com/gostaticanalysis/nilerr"
+)
 
 func main() {
 	mychecks := []*analysis.Analyzer{
@@ -36,6 +34,8 @@ func main() {
 		unreachable.Analyzer,
 		printf.Analyzer,
 		shadow.Analyzer,
+		nilerr.Analyzer,
+		ineffassign.Analyzer,
 	}
 
 	checks := map[string]bool{

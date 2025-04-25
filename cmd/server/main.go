@@ -101,8 +101,8 @@ func main() {
 		"addr", serverAddress,
 	)
 
-	storeInterval := 300
-	restore := true
+	var storeInterval int
+
 	storeIntervalEnv, envExists := os.LookupEnv("STORE_INTERVAL")
 	if !(envExists) {
 		storeInterval = *storeIntervalFlag
@@ -117,7 +117,7 @@ func main() {
 	if !(envExists) {
 		fileStore = *fileStorePathFlag
 	}
-
+	var restore bool
 	restoreEnv, envExists := os.LookupEnv("RESTORE")
 	if !(envExists) {
 		restore = *restoreFlag
