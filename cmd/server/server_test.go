@@ -377,7 +377,7 @@ func TestGetMetric(t *testing.T) {
 			if err != nil {
 				panic(err)
 			}
-			request := httptest.NewRequest(http.MethodGet, "/value", &buf)
+			request := httptest.NewRequest(http.MethodPost, "/value", &buf)
 
 			logger, err := zap.NewDevelopment()
 			if err != nil {
@@ -593,7 +593,7 @@ func TestUpdateAllValues(t *testing.T) {
 			if err != nil {
 				panic(err)
 			}
-			
+
 			var buf bytes.Buffer
 			bodyRequestEncode := json.NewEncoder(&buf)
 			err = bodyRequestEncode.Encode(test.metrics)
@@ -621,5 +621,75 @@ func TestUpdateAllValues(t *testing.T) {
 
 			defer res.Body.Close()
 		})
+	}
+}
+
+func BenchmarkGetMetricPath(b *testing.B) {
+	storage := &str.MemStorage{}
+	err := storage.Init(false, "", 0)
+	if err != nil {
+		panic(err)
+	}
+	storage.RepositoryAddCounterValue("PollCount", 1)
+	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
+
+	request := httptest.NewRequest("GET", "/value/", nil)
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("metricType", "counter")
+	rctx.URLParams.Add("metricName", "PollCount")
+	req := request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, rctx))
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+
+	defer logger.Sync()
+	App := Application{Storage: storage, Logger: *logger.Sugar()}
+
+	w := httptest.NewRecorder()
+	handler := http.HandlerFunc(App.GetMetricPath())
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		handler.ServeHTTP(w, req)
+	}
+}
+
+func BenchmarkGetMetric(b *testing.B) {
+	storage := &str.MemStorage{}
+	err := storage.Init(false, "", 0)
+	if err != nil {
+		panic(err)
+	}
+	storage.RepositoryAddCounterValue("PollCount", 1)
+	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
+
+	metric := &data.Metrics{ID: "PollCount", MType: "counter"}
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+
+	defer logger.Sync()
+	App := Application{Storage: storage, Logger: *logger.Sugar()}
+
+	var buf bytes.Buffer
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bodyRequestEncode := json.NewEncoder(&buf)
+		err = bodyRequestEncode.Encode(metric)
+		if err != nil {
+			panic(err)
+		}
+
+		request := httptest.NewRequest("POST", "/value/", &buf)
+
+		w := httptest.NewRecorder()
+		handler := http.HandlerFunc(App.GetMetric())
+
+		handler.ServeHTTP(w, request)
 	}
 }

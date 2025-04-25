@@ -393,7 +393,7 @@ func (App *Application) GetMetric() http.HandlerFunc {
 		}
 		if err = json.Unmarshal(buf.Bytes(), &metricData); err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			App.Logger.Errorln("Error during deserialization")
+			App.Logger.Errorln("Error during deserialization: ", err)
 			return
 		}
 
