@@ -15,7 +15,7 @@ func TestCompress(t *testing.T) {
 	metricsTest := make([]Metrics, 3)
 	metricsResult := make([]Metrics, 2)
 	var testCounterAllDelta int64 = 101
-	var testGaugeAllValue float64 = 101.101
+	testGaugeAllValue  := 101.101
 	metricsTest[0] = Metrics{ID: "TestCounterAll", MType: "counter", Delta: &testCounterAllDelta}
 	metricsTest[1] = Metrics{ID: "TestGaugeAll", MType: "gauge", Value: &testGaugeAllValue}
 

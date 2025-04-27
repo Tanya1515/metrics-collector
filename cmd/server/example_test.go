@@ -44,6 +44,7 @@ func ExampleApplication_GetMetricPath() {
 	res := w.Result()
 
 	resBody, err := io.ReadAll(res.Body)
+	defer res.Body.Close()
 
 	fmt.Println(res.StatusCode)
 	fmt.Println(string(resBody))
@@ -81,6 +82,7 @@ func ExampleApplication_UpdateValuePath() {
 	h(w, request)
 
 	res := w.Result()
+	defer res.Body.Close()
 
 	fmt.Println(res.StatusCode)
 
@@ -122,6 +124,7 @@ func ExampleApplication_GetMetric() {
 	h(w, request)
 
 	res := w.Result()
+	defer res.Body.Close()
 
 	fmt.Println(res.StatusCode)
 
@@ -165,6 +168,7 @@ func ExampleApplication_UpdateValue() {
 	h(w, request)
 
 	res := w.Result()
+	defer res.Body.Close()
 
 	fmt.Println(res.StatusCode)
 
@@ -190,7 +194,7 @@ func ExampleApplication_UpdateAllValues() {
 
 	metrics := make([]data.Metrics, 2)
 	var testCounterAllDelta int64 = 101
-	var testGaugeAllValue float64 = 101.101
+	testGaugeAllValue := 101.101
 	metrics[0] = data.Metrics{ID: "TestCounterAll", MType: "counter", Delta: &testCounterAllDelta}
 	metrics[1] = data.Metrics{ID: "TestGaugeAll", MType: "gauge", Value: &testGaugeAllValue}
 
@@ -217,6 +221,7 @@ func ExampleApplication_UpdateAllValues() {
 	h(w, request)
 
 	res := w.Result()
+	defer res.Body.Close()
 
 	fmt.Println(res.StatusCode)
 
@@ -228,7 +233,7 @@ func ExampleApplication_UpdateAllValues() {
 
 	fmt.Println(value)
 
-	// Output: 
+	// Output:
 	// 200
 	// 101
 	// 101.101
