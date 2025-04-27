@@ -19,8 +19,8 @@ type MemStorage struct {
 
 func (S *MemStorage) Init(restore bool, fileStore string, backupTimer int) error {
 	var mutex sync.Mutex
-	S.counterStorage = make(map[string]int64, 100)
-	S.gaugeStorage = make(map[string]float64, 100)
+	S.counterStorage = make(map[string]int64, 1000)
+	S.gaugeStorage = make(map[string]float64, 1000)
 	S.fileStore = fileStore
 	S.backupTimer = backupTimer
 	S.mutex = &mutex
@@ -42,4 +42,3 @@ func (S *MemStorage) Init(restore bool, fileStore string, backupTimer int) error
 func (S *MemStorage) CheckConnection(ctx context.Context) error {
 	return nil
 }
-

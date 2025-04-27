@@ -144,11 +144,16 @@ func main() {
 		r.Get("/ping", App.MiddlewareChain(App.CheckStorageConnection(), commonMiddlewares...))
 	})
 
-	go http.ListenAndServe("localhost:8081", nil)
+	go func() {
+		App.Logger.Infoln("Starting server for pprof")
+		err = http.ListenAndServe("localhost:8081", nil)
+		if err != nil {
+			App.Logger.Fatalw(err.Error(), "event", "start server for pprof")
+		}
+	}()
 
 	err = http.ListenAndServe(serverAddress, r)
 	if err != nil {
-		fmt.Println(err)
 		App.Logger.Fatalw(err.Error(), "event", "start server")
 	}
 
