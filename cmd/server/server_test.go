@@ -657,6 +657,71 @@ func BenchmarkGetMetricPath(b *testing.B) {
 	}
 }
 
+func BenchmarkUpdateValue(b *testing.B) {
+	storage := &str.MemStorage{}
+	var counterMetrciValue int64 = 4
+	metric := &data.Metrics{ID: "value", MType: "counter", Delta: &counterMetrciValue}
+	var buf bytes.Buffer
+	err := storage.Init(false, "", 0)
+	if err != nil {
+		panic(err)
+	}
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+
+	defer logger.Sync()
+	App := Application{Storage: storage, Logger: *logger.Sugar()}
+	w := httptest.NewRecorder()
+	handler := http.HandlerFunc(App.UpdateValue())
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bodyRequestEncode := json.NewEncoder(&buf)
+		err = bodyRequestEncode.Encode(metric)
+		if err != nil {
+			panic(err)
+		}
+
+		request := httptest.NewRequest(http.MethodPost, "/update/", &buf)
+		
+		
+		handler.ServeHTTP(w, request)
+	}
+
+}
+
+func BenchmarkUpdateValuePath(b *testing.B) {
+	storage := &str.MemStorage{}
+	err := storage.Init(false, "", 0)
+	if err != nil {
+		panic(err)
+	}
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+
+	defer logger.Sync()
+	App := Application{Storage: storage, Logger: *logger.Sugar()}
+	request := httptest.NewRequest("POST", "/value/", nil)
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("metricType", "counter")
+	rctx.URLParams.Add("metricName", "PollCount")
+	rctx.URLParams.Add("metricValue", "4")
+	req := request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	handler := http.HandlerFunc(App.UpdateValuePath())
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		handler.ServeHTTP(w, req)
+	}
+}
+
 func BenchmarkGetMetric(b *testing.B) {
 	storage := &str.MemStorage{}
 	err := storage.Init(false, "", 0)
