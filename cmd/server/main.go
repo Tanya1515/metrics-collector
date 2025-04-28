@@ -1,7 +1,7 @@
 // Server is used to process http-requests and gather data from agent.
 // Processed data can be saved to in-memory storage or to PostgreSQL database.
 // Processed data consists of data of runtime package
-package server
+package main
 
 import (
 	"flag"

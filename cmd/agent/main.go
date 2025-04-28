@@ -3,7 +3,7 @@
 // collected metrics to server.
 // Data is collected every 2 seconds (default meaning).
 // Data is sent every 10 seconds (default meaning).
-package agent
+package main
 
 import (
 	"crypto/hmac"
