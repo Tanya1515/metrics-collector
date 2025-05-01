@@ -136,10 +136,6 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 			}
 		}
 
-		if strings.Contains(r.Header.Get("X-Encrypted"), "rsa") {
-			data.DecryptData(App.CryptoKey, buf.Bytes())
-		}
-
 		if err := json.Unmarshal(buf.Bytes(), &metricData); err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			App.Logger.Errorln("Error during deserialization")
