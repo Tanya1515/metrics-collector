@@ -135,6 +135,11 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 				return
 			}
 		}
+
+		if strings.Contains(r.Header.Get("X-Encrypted"), "rsa") {
+			data.DecryptData(App.CryptoKey, buf.Bytes())
+		}
+
 		if err := json.Unmarshal(buf.Bytes(), &metricData); err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			App.Logger.Errorln("Error during deserialization")
@@ -484,9 +489,28 @@ func (App *Application) UpdateAllValues() http.HandlerFunc {
 	updateAllValuesfunc := func(rw http.ResponseWriter, r *http.Request) {
 		metricDataList := make([]data.Metrics, 100)
 		var buf bytes.Buffer
+		var result []byte
 
+		_, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if strings.Contains(r.Header.Get("X-Encrypted"), "rsa") {
+			result, err = data.DecryptData(App.CryptoKey, buf.Bytes())
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				App.Logger.Errorln("Error while decrypting data:", err)
+				return
+			}
+		} else {
+			result = buf.Bytes()
+		}
+
+		reader := bytes.NewReader(result)
+		buf.Reset()
 		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
-			gz, err := gzip.NewReader(r.Body)
+			gz, err := gzip.NewReader(reader)
 			if err != nil {
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 				App.Logger.Errorln("Error during unpacking the request: ", err)
@@ -500,13 +524,6 @@ func (App *Application) UpdateAllValues() http.HandlerFunc {
 				return
 			}
 
-		} else {
-			_, err := buf.ReadFrom(r.Body)
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusBadRequest)
-				App.Logger.Errorln("Bad request catched:", err)
-				return
-			}
 		}
 
 		if err := json.Unmarshal(buf.Bytes(), &metricDataList); err != nil {

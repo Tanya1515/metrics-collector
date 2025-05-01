@@ -38,6 +38,7 @@ var (
 	serverAddressFlag *string
 	// secretKeyFlag - flag for secret key for
 	secretKeyFlag           *string
+	cryptoKeyPathFlag       *string
 	limitServerRequestsFlag *int
 	buildVersion            string = "N/A"
 	buildDate               string = "N/A"
@@ -50,6 +51,7 @@ func init() {
 	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
 	secretKeyFlag = flag.String("k", "", "secret key for creating hash")
 	limitServerRequestsFlag = flag.Int("l", 1, "limit of requests to server")
+	cryptoKeyPathFlag = flag.String("crypto-key", "", "path to key for asymmetrical encryption")
 }
 
 // MakeMetrics - make list of data.Metrics from map.
@@ -181,6 +183,7 @@ func main() {
 	fmt.Println("Build date: ", buildDate)
 	fmt.Println("Build commit: ", buildCommit)
 	var err error
+	var cryptoKey []byte
 	chansPollCount := []chan int64{
 		make(chan int64),
 		make(chan int64),
@@ -218,6 +221,18 @@ func main() {
 		reportInt, err = strconv.Atoi(reportInterval)
 		if err != nil {
 			Logger.Errorln("Error while transforming to int: ", err)
+		}
+	}
+
+	cryptoKeyPath, envExists := os.LookupEnv("CRYPTO_KEY")
+	if !(envExists) {
+		cryptoKeyPath = *cryptoKeyPathFlag
+	}
+
+	if cryptoKeyPath != "" {
+		cryptoKey, err = os.ReadFile(cryptoKeyPath)
+		if err != nil {
+			fmt.Println("Error while reading file with crypto key: ", err)
 		}
 	}
 
@@ -280,6 +295,13 @@ func main() {
 						return
 
 					}
+					if cryptoKey != nil {
+						compressedMetrics, err = data.EncryptData(compressedMetrics, cryptoKey)
+						if err != nil {
+							resultChannel <- err
+							return
+						}
+					}
 					if secretKeyHash != "" {
 						h := hmac.New(sha256.New, []byte(secretKeyHash))
 						h.Write(compressedMetrics)
@@ -291,8 +313,10 @@ func main() {
 					for i := 0; i <= 3; i++ {
 						if secretKeyHash != "" {
 							_, err = client.R().
+								
 								SetHeader("Content-Type", "application/json").
 								SetHeader("Content-Encoding", "gzip").
+								SetHeader("X-Encrypted", "rsa").
 								SetHeader("HashSHA256", hex.EncodeToString(sign)).
 								SetBody(compressedMetrics).
 								Post(requestString)
@@ -300,6 +324,7 @@ func main() {
 							_, err = client.R().
 								SetHeader("Content-Type", "application/json").
 								SetHeader("Content-Encoding", "gzip").
+								SetHeader("X-Encrypted", "rsa").
 								SetBody(compressedMetrics).
 								Post(requestString)
 						}

@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"net/http"
@@ -28,8 +29,10 @@ type Application struct {
 	Storage storage.RepositoryInterface
 	// Logger - logger for saving info about all events in the application.
 	Logger zap.SugaredLogger
-	// SecretKey - key for decrypting incoming data
+	// SecretKey - key for chacking hash of incoming data
 	SecretKey string
+	// CryptoKey - key for encrypting incoming data (asymmetrical encryption)
+	CryptoKey string
 }
 
 func init() {
@@ -39,6 +42,7 @@ func init() {
 	fileStorePathFlag = flag.String("f", "/tmp/metrics-db.json", "filename for storing metrics")
 	restoreFlag = flag.Bool("r", true, "store all info")
 	secretKeyFlag = flag.String("k", "", "secret key for hash")
+	cryptoKeyPathFlag = flag.String("crypto-key", "", "path to key for asymmetrical encryption")
 }
 
 var (
@@ -48,6 +52,7 @@ var (
 	restoreFlag       *bool
 	postgreSQLFlag    *string
 	secretKeyFlag     *string
+	cryptoKeyPathFlag *string
 	buildVersion      string = "N/A"
 	buildDate         string = "N/A"
 	buildCommit       string = "N/A"
@@ -58,7 +63,6 @@ func main() {
 	fmt.Println("Build date: ", buildDate)
 	fmt.Println("Build commit: ", buildCommit)
 	var Storage storage.RepositoryInterface
-
 	flag.Parse()
 
 	serverAddress, envExists := os.LookupEnv("ADDRESS")
@@ -69,6 +73,11 @@ func main() {
 	postgreSQLAddress, envExists := os.LookupEnv("DATABASE_DSN")
 	if !(envExists) {
 		postgreSQLAddress = *postgreSQLFlag
+	}
+
+	cryptoKeyPath, envExists := os.LookupEnv("CRYPTO_KEY")
+	if !(envExists) {
+		cryptoKeyPath = *cryptoKeyPathFlag
 	}
 
 	if postgreSQLAddress != "" {
@@ -108,6 +117,18 @@ func main() {
 	)
 
 	var storeInterval int
+
+	if cryptoKeyPath != "" {
+		file, err := os.Open(cryptoKeyPath)
+		if err != nil {
+			App.Logger.Errorln("Error while openning file with crypto key: ", err)
+		}
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			App.CryptoKey += scanner.Text() + "\n"
+		}
+	}
+	App.Logger.Infoln(App.CryptoKey)
 
 	storeIntervalEnv, envExists := os.LookupEnv("STORE_INTERVAL")
 	if !(envExists) {
