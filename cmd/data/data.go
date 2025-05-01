@@ -4,7 +4,12 @@ package data
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"net/http"
 )
@@ -55,4 +60,52 @@ func Compress(metricData *[]Metrics) ([]byte, error) {
 	}
 
 	return b.Bytes(), nil
+}
+
+// Парсим публичный ключ из DER-данных
+
+// Проверяем, что это RSA ключ
+
+// EncryptData - function for encrypting metricData
+func EncryptData(data []byte, publicKeyStr []byte) ([]byte, error) {
+	block, _ := pem.Decode(publicKeyStr)
+	if block == nil {
+		return nil, fmt.Errorf("failed to decode PEM block")
+	}
+
+	if block.Type != "PUBLIC KEY" {
+		return nil, fmt.Errorf("invalid PEM block type: %s", block.Type)
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse public key: %v", err)
+	}
+
+	rsaPub, ok := pub.(*rsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("not an RSA public key")
+	}
+
+	ciphertext, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, rsaPub, data, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return ciphertext, nil
+}
+
+// DecryptData - function for decrypting data
+func DecryptData(privateKeyStr string, data []byte) ([]byte, error) {
+
+	block, _ := pem.Decode([]byte(privateKeyStr))
+	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	plaintext, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, privateKey, data, nil)
+	if err != nil {
+		return nil, err
+	}
+	return plaintext, nil
 }
