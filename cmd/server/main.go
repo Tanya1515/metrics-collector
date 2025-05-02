@@ -5,6 +5,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -43,19 +44,21 @@ func init() {
 	restoreFlag = flag.Bool("r", true, "store all info")
 	secretKeyFlag = flag.String("k", "", "secret key for hash")
 	cryptoKeyPathFlag = flag.String("crypto-key", "", "path to key for asymmetrical encryption")
+	configFilePathFlag = flag.String("config", "", "path to config file for the application")
 }
 
 var (
-	serverAddressFlag *string
-	storeIntervalFlag *int
-	fileStorePathFlag *string
-	restoreFlag       *bool
-	postgreSQLFlag    *string
-	secretKeyFlag     *string
-	cryptoKeyPathFlag *string
-	buildVersion      string = "N/A"
-	buildDate         string = "N/A"
-	buildCommit       string = "N/A"
+	serverAddressFlag  *string
+	storeIntervalFlag  *int
+	fileStorePathFlag  *string
+	restoreFlag        *bool
+	postgreSQLFlag     *string
+	secretKeyFlag      *string
+	cryptoKeyPathFlag  *string
+	configFilePathFlag *string
+	buildVersion       string = "N/A"
+	buildDate          string = "N/A"
+	buildCommit        string = "N/A"
 )
 
 func main() {
@@ -65,19 +68,48 @@ func main() {
 	var Storage storage.RepositoryInterface
 	flag.Parse()
 
+	configFilePath, envExists := os.LookupEnv("CONFIG")
+	if !(envExists) {
+		configFilePath = *configFilePathFlag
+	}
+
+	configApp := new(data.ConfigApp)
+	if configFilePath != "" {
+		config, err := os.ReadFile(configFilePath)
+		if err != nil {
+			fmt.Println("Error while parsing config file: ", err)
+		}
+
+		err = json.Unmarshal(config, configApp)
+		if err != nil {
+			fmt.Println("Error while unmarshaling config data: ", err)
+		}
+	}
+
 	serverAddress, envExists := os.LookupEnv("ADDRESS")
 	if !(envExists) {
 		serverAddress = *serverAddressFlag
+	}
+
+	if serverAddress == "localhost:8080" && configFilePath != "" {
+		serverAddress = configApp.ServerAddress
 	}
 
 	postgreSQLAddress, envExists := os.LookupEnv("DATABASE_DSN")
 	if !(envExists) {
 		postgreSQLAddress = *postgreSQLFlag
 	}
+	if postgreSQLAddress == "" && configFilePath != "" {
+		postgreSQLAddress = configApp.PostgreSQL
+	}
 
 	cryptoKeyPath, envExists := os.LookupEnv("CRYPTO_KEY")
 	if !(envExists) {
 		cryptoKeyPath = *cryptoKeyPathFlag
+	}
+
+	if cryptoKeyPath == "" && configFilePath != "" {
+		cryptoKeyPath = configApp.CryptoKeyPath
 	}
 
 	if postgreSQLAddress != "" {
@@ -107,6 +139,10 @@ func main() {
 	secretKeyHash, secretKeyExists := os.LookupEnv("KEY")
 	if !(secretKeyExists) {
 		secretKeyHash = *secretKeyFlag
+	}
+
+	if secretKeyHash == "" && configFilePath != "" {
+		secretKeyHash = configApp.SecretKey
 	}
 
 	App := Application{Storage: Storage, Logger: *logger.Sugar(), SecretKey: secretKeyHash}
@@ -140,10 +176,24 @@ func main() {
 		}
 	}
 
+	if storeInterval == 300 && configFilePath != "" {
+		if configApp.StoreInterval != "" {
+			storeInterval, err = strconv.Atoi(strings.Split(configApp.StoreInterval, "s")[0])
+			if err != nil {
+				App.Logger.Errorln("Error when converting string to int: ", err)
+			}
+		}
+	}
+
 	fileStore, envExists := os.LookupEnv("FILE_STORAGE_PATH")
 	if !(envExists) {
 		fileStore = *fileStorePathFlag
 	}
+
+	if fileStore == "/tmp/metrics-db.json" && configFilePath != "" {
+		fileStore = configApp.FileStorePath
+	}
+
 	var restore bool
 	restoreEnv, envExists := os.LookupEnv("RESTORE")
 	if !(envExists) {
@@ -153,6 +203,10 @@ func main() {
 		if err != nil {
 			App.Logger.Errorln("Error when converting string to bool: ", err)
 		}
+	}
+
+	if restore && configFilePath != "" {
+		restore = configApp.Restore
 	}
 
 	err = Storage.Init(restore, fileStore, storeInterval)

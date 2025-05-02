@@ -36,6 +36,40 @@ type Metrics struct {
 	Value *float64 `json:"value,omitempty"`
 }
 
+// ConfigApp - type, that describes all fields of the application config file
+type ConfigApp struct {
+	// ServerAddress - server address
+	ServerAddress string `json:"address"`
+	// StoreInterval - time duration for saving metrics
+	StoreInterval string `json:"store_interval"`
+	// FileStorePath - filename for storing metrics
+	FileStorePath string `json:"store_file"`
+	// Restore - flag for storing all info
+	Restore bool `json:"restore"`
+	// PostgreSQL - credentials for database
+	PostgreSQL string `json:"database_dsn"`
+	// SecretKey - secret key for hashing data
+	SecretKey string `json:"secret_key"`
+	// CryptoKeyPath - path to key for asymmetrical encryption
+	CryptoKeyPath string `json:"crypto_key"`
+}
+
+// ConfigAgent - type, that describes all fields of the agent configuration
+type ConfigAgent struct {
+	// ReportInterval - time duration for sending metrics
+	ReportInterval string `json:"report_interval"`
+	// PollInterval - time duration for getting metrics
+	PollInterval string `json:"poll_interval"`
+	// ServerAddress - server address for sending metrics
+	ServerAddress string `json:"address"`
+	// SecretKey - secret key for creating hash
+	SecretKey string `json:"secret_key"`
+	// CryptoKeyPath - limit of requests to server
+	CryptoKeyPath string `json:"crypto_key"`
+	// LimitServerRequests - path to key for asymmetrical encryption
+	LimitServerRequests int `json:"limit_requests"`
+}
+
 // Compress - function for compressing list of metrics to slice of bytes
 func Compress(metricData *[]Metrics) ([]byte, error) {
 	var b bytes.Buffer
