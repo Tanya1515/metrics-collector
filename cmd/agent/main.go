@@ -314,6 +314,7 @@ func main() {
 		secretKeyHash = configAgent.SecretKey
 	}
 
+	fmt.Println(cryptoKey)
 	requestString := MakeString(serverAddress)
 	go GetMetrics(chansPollCount[0], chanMetrics, time.Duration(pollInt))
 	go GetMetricsUtil(chansPollCount[1], chanMetrics, time.Duration(pollInt))
@@ -366,7 +367,7 @@ func main() {
 					sem <- struct{}{}
 					defer func() { <-sem }()
 					for i := 0; i <= 3; i++ {
-						if secretKeyHash != "" {
+						if secretKeyHash != "" && cryptoKey != nil {
 							_, err = client.R().
 								SetHeader("Content-Type", "application/json").
 								SetHeader("Content-Encoding", "gzip").
@@ -374,11 +375,17 @@ func main() {
 								SetHeader("HashSHA256", hex.EncodeToString(sign)).
 								SetBody(compressedMetrics).
 								Post(requestString)
-						} else {
+						} else if cryptoKey != nil {
 							_, err = client.R().
 								SetHeader("Content-Type", "application/json").
 								SetHeader("Content-Encoding", "gzip").
 								SetHeader("X-Encrypted", "rsa").
+								SetBody(compressedMetrics).
+								Post(requestString)
+						} else {
+							_, err = client.R().
+								SetHeader("Content-Type", "application/json").
+								SetHeader("Content-Encoding", "gzip").
 								SetBody(compressedMetrics).
 								Post(requestString)
 						}
