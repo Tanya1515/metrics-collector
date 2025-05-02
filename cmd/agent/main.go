@@ -9,6 +9,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -39,6 +40,7 @@ var (
 	// secretKeyFlag - flag for secret key for
 	secretKeyFlag           *string
 	cryptoKeyPathFlag       *string
+	configFilePathFlag      *string
 	limitServerRequestsFlag *int
 	buildVersion            string = "N/A"
 	buildDate               string = "N/A"
@@ -52,6 +54,7 @@ func init() {
 	secretKeyFlag = flag.String("k", "", "secret key for creating hash")
 	limitServerRequestsFlag = flag.Int("l", 1, "limit of requests to server")
 	cryptoKeyPathFlag = flag.String("crypto-key", "", "path to key for asymmetrical encryption")
+	configFilePathFlag = flag.String("config", "", "path to config file for the application")
 }
 
 // MakeMetrics - make list of data.Metrics from map.
@@ -210,9 +213,31 @@ func main() {
 
 	flag.Parse()
 
+	configFilePath, envExists := os.LookupEnv("CONFIG")
+	if !(envExists) {
+		configFilePath = *configFilePathFlag
+	}
+	configAgent := new(data.ConfigAgent)
+	if configFilePath != "" {
+
+		config, err := os.ReadFile(configFilePath)
+		if err != nil {
+			fmt.Println("Error while reading config file for agent: ", err)
+		}
+
+		err = json.Unmarshal(config, configAgent)
+		if err != nil {
+			fmt.Println("Error while unmarshaling data from config file for agent: ", err)
+		}
+	}
+
 	serverAddress, addressExists := os.LookupEnv("ADDRESS")
 	if !(addressExists) {
 		serverAddress = *serverAddressFlag
+	}
+
+	if serverAddress == "localhost:8080" && configFilePath != "" {
+		serverAddress = configAgent.ServerAddress
 	}
 
 	reportInt := *ReportIntervalFlag
@@ -224,9 +249,22 @@ func main() {
 		}
 	}
 
+	if reportInt == 10 && configFilePath != "" {
+		if configAgent.ReportInterval != "" {
+			reportInt, err = strconv.Atoi(strings.Split(configAgent.ReportInterval, "s")[0])
+			if err != nil {
+				Logger.Errorln("Error while report interval transforming to int: ", err)
+			}
+		}
+	}
+
 	cryptoKeyPath, envExists := os.LookupEnv("CRYPTO_KEY")
 	if !(envExists) {
 		cryptoKeyPath = *cryptoKeyPathFlag
+	}
+
+	if cryptoKeyPath == "" && configFilePath != "" {
+		cryptoKeyPath = configAgent.CryptoKeyPath
 	}
 
 	if cryptoKeyPath != "" {
@@ -245,6 +283,15 @@ func main() {
 		}
 	}
 
+	if pollInt == 2 && configFilePath != "" {
+		if configAgent.PollInterval != "" {
+			pollInt, err = strconv.Atoi(strings.Split(configAgent.PollInterval, "s")[0])
+			if err != nil {
+				Logger.Errorln("Error while poll interval transforming to int: ", err)
+			}
+		}
+	}
+
 	limitRequests := *limitServerRequestsFlag
 	limitReq, limitReqExist := os.LookupEnv("RATE_LIMIT")
 	if limitReqExist {
@@ -254,9 +301,17 @@ func main() {
 		}
 	}
 
+	if limitRequests == 1 && configFilePath != "" {
+		limitRequests = configAgent.LimitServerRequests
+	}
+
 	secretKeyHash, secretKeyExists := os.LookupEnv("KEY")
 	if !(secretKeyExists) {
 		secretKeyHash = *secretKeyFlag
+	}
+
+	if secretKeyHash == "" && configFilePath != "" {
+		secretKeyHash = configAgent.SecretKey
 	}
 
 	requestString := MakeString(serverAddress)
@@ -313,7 +368,6 @@ func main() {
 					for i := 0; i <= 3; i++ {
 						if secretKeyHash != "" {
 							_, err = client.R().
-								
 								SetHeader("Content-Type", "application/json").
 								SetHeader("Content-Encoding", "gzip").
 								SetHeader("X-Encrypted", "rsa").
