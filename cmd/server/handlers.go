@@ -516,25 +516,27 @@ func (App *Application) UpdateAllValues() http.HandlerFunc {
 					http.Error(rw, err.Error(), http.StatusInternalServerError)
 					return
 				}
+			}
+		} else if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+			gz, err := gzip.NewReader(r.Body)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				App.Logger.Errorln("Error during unpacking the request: ", err)
+				return
+			}
+			defer gz.Close()
 
+			_, err = buf.ReadFrom(gz)
+			if err != nil {
+				App.Logger.Errorln("Error while reading from gz archive: ", err)
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				return
 			}
 		} else {
-			if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
-				gz, err := gzip.NewReader(r.Body)
-				if err != nil {
-					http.Error(rw, err.Error(), http.StatusInternalServerError)
-					App.Logger.Errorln("Error during unpacking the request: ", err)
-					return
-				}
-				defer gz.Close()
-
-				_, err = buf.ReadFrom(gz)
-				if err != nil {
-					App.Logger.Errorln("Error while reading from gz archive: ", err)
-					http.Error(rw, err.Error(), http.StatusInternalServerError)
-					return
-				}
-
+			_, err := buf.ReadFrom(r.Body)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				return
 			}
 		}
 
