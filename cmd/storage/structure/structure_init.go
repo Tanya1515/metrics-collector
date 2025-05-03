@@ -9,7 +9,7 @@ import (
 
 var errorMetricExists = errors.New("ErrMetricExists")
 
-// MemStorage - data structure for describing in-memory storage 
+// MemStorage - data structure for describing in-memory storage
 type MemStorage struct {
 	counterStorage map[string]int64
 	gaugeStorage   map[string]float64
@@ -18,7 +18,7 @@ type MemStorage struct {
 	fileStore      string
 }
 
-func (S *MemStorage) Init(restore bool, fileStore string, backupTimer int) error {
+func (S *MemStorage) Init(restore bool, fileStore string, backupTimer int, shutdown chan struct{}, Gctx context.Context) error {
 	var mutex sync.Mutex
 	S.counterStorage = make(map[string]int64, 1000)
 	S.gaugeStorage = make(map[string]float64, 1000)
@@ -35,7 +35,7 @@ func (S *MemStorage) Init(restore bool, fileStore string, backupTimer int) error
 
 	if (S.fileStore != "") && (S.backupTimer != 0) {
 
-		go S.SaveMetricsAsync()
+		go S.SaveMetricsAsync(shutdown, Gctx)
 	}
 	return nil
 }

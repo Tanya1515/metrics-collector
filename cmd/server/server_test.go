@@ -111,7 +111,8 @@ func TestUpdateValuePath(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run("Test:", func(t *testing.T) {
-			err := test.storage.Init(false, "", 0)
+			chanSh := make(chan struct{})
+			err := test.storage.Init(false, "", 0, chanSh, context.Background())
 			if err != nil {
 				panic(err)
 			}
@@ -232,7 +233,8 @@ func TestUpdateValue(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run("Test:", func(t *testing.T) {
-			err := test.storage.Init(false, "", 0)
+			chanSh := make(chan struct{})
+			err := test.storage.Init(false, "", 0, chanSh, context.Background())
 			if err != nil {
 				panic(err)
 			}
@@ -365,7 +367,8 @@ func TestGetMetric(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run("Test:", func(t *testing.T) {
-			err := test.storage.Init(false, "", 0)
+			chanSh := make(chan struct{})
+			err := test.storage.Init(false, "", 0, chanSh, context.Background())
 			if err != nil {
 				panic(err)
 			}
@@ -495,7 +498,8 @@ func TestGetMetricPath(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run("Test:", func(t *testing.T) {
-			err := test.storage.Init(false, "", 0)
+			chanSh := make(chan struct{})
+			err := test.storage.Init(false, "", 0, chanSh, context.Background())
 			if err != nil {
 				panic(err)
 			}
@@ -589,7 +593,8 @@ func TestUpdateAllValues(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run("Test:", func(t *testing.T) {
-			err := test.storage.Init(false, "", 0)
+			chanSh := make(chan struct{})
+			err := test.storage.Init(false, "", 0, chanSh, context.Background())
 			if err != nil {
 				panic(err)
 			}
@@ -626,7 +631,8 @@ func TestUpdateAllValues(t *testing.T) {
 
 func BenchmarkGetMetricPath(b *testing.B) {
 	storage := &str.MemStorage{}
-	err := storage.Init(false, "", 0)
+	chanSh := make(chan struct{})
+	err := storage.Init(false, "", 0, chanSh, context.Background())
 	if err != nil {
 		panic(err)
 	}
@@ -662,7 +668,8 @@ func BenchmarkUpdateValue(b *testing.B) {
 	var counterMetrciValue int64 = 4
 	metric := &data.Metrics{ID: "value", MType: "counter", Delta: &counterMetrciValue}
 	var buf bytes.Buffer
-	err := storage.Init(false, "", 0)
+	chanSh := make(chan struct{})
+	err := storage.Init(false, "", 0, chanSh, context.Background())
 	if err != nil {
 		panic(err)
 	}
@@ -694,7 +701,8 @@ func BenchmarkUpdateValue(b *testing.B) {
 
 func BenchmarkUpdateValuePath(b *testing.B) {
 	storage := &str.MemStorage{}
-	err := storage.Init(false, "", 0)
+	chanSh := make(chan struct{})
+	err := storage.Init(false, "", 0, chanSh, context.Background())
 	if err != nil {
 		panic(err)
 	}
@@ -724,7 +732,8 @@ func BenchmarkUpdateValuePath(b *testing.B) {
 
 func BenchmarkGetMetric(b *testing.B) {
 	storage := &str.MemStorage{}
-	err := storage.Init(false, "", 0)
+	chanSh := make(chan struct{})
+	err := storage.Init(false, "", 0, chanSh, context.Background())
 	if err != nil {
 		panic(err)
 	}

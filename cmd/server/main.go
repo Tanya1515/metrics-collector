@@ -5,14 +5,17 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
@@ -39,7 +42,7 @@ type Application struct {
 func init() {
 	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
 	postgreSQLFlag = flag.String("d", "", "credentials for database")
-	storeIntervalFlag = flag.Int("i", 300, "time duration for saving metrics")
+	storeIntervalFlag = flag.Int("i", 1, "time duration for saving metrics")
 	fileStorePathFlag = flag.String("f", "/tmp/metrics-db.json", "filename for storing metrics")
 	restoreFlag = flag.Bool("r", true, "store all info")
 	secretKeyFlag = flag.String("k", "", "secret key for hash")
@@ -112,6 +115,8 @@ func main() {
 		cryptoKeyPath = configApp.CryptoKeyPath
 	}
 
+	Gctx, cancelG := context.WithCancel(context.Background())
+	shutdown := make(chan struct{})
 	if postgreSQLAddress != "" {
 		postgreSQLAddrPortDatabase := strings.Split((strings.Split((strings.Split(postgreSQLAddress, "@"))[1], "?"))[0], ":")
 		postgreSQLDatabase := "postgres"
@@ -164,7 +169,6 @@ func main() {
 			App.CryptoKey += scanner.Text() + "\n"
 		}
 	}
-	App.Logger.Infoln(App.CryptoKey)
 
 	storeIntervalEnv, envExists := os.LookupEnv("STORE_INTERVAL")
 	if !(envExists) {
@@ -209,7 +213,7 @@ func main() {
 		restore = configApp.Restore
 	}
 
-	err = Storage.Init(restore, fileStore, storeInterval)
+	err = Storage.Init(restore, fileStore, storeInterval, shutdown, Gctx)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -240,9 +244,28 @@ func main() {
 		}
 	}()
 
-	err = http.ListenAndServe(serverAddress, r)
-	if err != nil {
+	srv := http.Server{Addr: ":8080", Handler: r}
+
+	gracefulSutdown := make(chan os.Signal, 1)
+
+	signal.Notify(gracefulSutdown, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-gracefulSutdown
+		cancelG()
+		if (fileStore != "") && (storeInterval != 0) {
+			<-shutdown
+		} else {
+			close(shutdown)
+		}
+		srv.Shutdown(context.Background())
+	}()
+
+	err = srv.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed {
 		App.Logger.Fatalw(err.Error(), "event", "start server")
 	}
 
+	<-shutdown
+	App.Logger.Infoln("Server successfully shutdown!")
 }

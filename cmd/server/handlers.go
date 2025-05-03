@@ -485,41 +485,57 @@ func (App *Application) UpdateAllValues() http.HandlerFunc {
 	updateAllValuesfunc := func(rw http.ResponseWriter, r *http.Request) {
 		metricDataList := make([]data.Metrics, 100)
 		var buf bytes.Buffer
-		var result []byte
 
-		_, err := buf.ReadFrom(r.Body)
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		defer r.Body.Close()
 		if strings.Contains(r.Header.Get("X-Encrypted"), "rsa") {
-			result, err = data.DecryptData(App.CryptoKey, buf.Bytes())
+			_, err := buf.ReadFrom(r.Body)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			result, err := data.DecryptData(App.CryptoKey, buf.Bytes())
 			if err != nil {
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 				App.Logger.Errorln("Error while decrypting data:", err)
 				return
 			}
+			reader := bytes.NewReader(result)
+			buf.Reset()
+			if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+				gz, err := gzip.NewReader(reader)
+				if err != nil {
+					http.Error(rw, err.Error(), http.StatusInternalServerError)
+					App.Logger.Errorln("Error during unpacking the request: ", err)
+					return
+				}
+				defer gz.Close()
+
+				_, err = buf.ReadFrom(gz)
+				if err != nil {
+					App.Logger.Errorln("Error while reading from gz archive: ", err)
+					http.Error(rw, err.Error(), http.StatusInternalServerError)
+					return
+				}
+
+			}
 		} else {
-			result = buf.Bytes()
-		}
+			if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+				gz, err := gzip.NewReader(r.Body)
+				if err != nil {
+					http.Error(rw, err.Error(), http.StatusInternalServerError)
+					App.Logger.Errorln("Error during unpacking the request: ", err)
+					return
+				}
+				defer gz.Close()
 
-		reader := bytes.NewReader(result)
-		buf.Reset()
-		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
-			gz, err := gzip.NewReader(reader)
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				App.Logger.Errorln("Error during unpacking the request: ", err)
-				return
+				_, err = buf.ReadFrom(gz)
+				if err != nil {
+					App.Logger.Errorln("Error while reading from gz archive: ", err)
+					http.Error(rw, err.Error(), http.StatusInternalServerError)
+					return
+				}
+
 			}
-			defer gz.Close()
-
-			_, err = buf.ReadFrom(gz)
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
 		}
 
 		if err := json.Unmarshal(buf.Bytes(), &metricDataList); err != nil {

@@ -21,7 +21,7 @@ const (
 	MetricsTableName = "metrics"
 )
 
-func (db *PostgreSQLConnection) Init(restore bool, fileStore string, backupTimer int) error {
+func (db *PostgreSQLConnection) Init(restore bool, fileStore string, backupTimer int, shutdown chan struct{}, ctx context.Context) error {
 	var err error
 	ps := fmt.Sprintf("host=%s port=%s user=%s password=%s database=%s sslmode=disable",
 		db.Address, db.Port, db.UserName, db.Password, db.DBName)

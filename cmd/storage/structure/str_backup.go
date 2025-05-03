@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -9,16 +10,21 @@ import (
 	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 )
 
-// SaveMetricsAsync - function for saving metrics every 
-func (S *MemStorage) SaveMetricsAsync() {
-
+// SaveMetricsAsync - function for saving metrics every
+func (S *MemStorage) SaveMetricsAsync(shutdown chan struct{}, Gctx context.Context) {
 	for {
-		S.SaveMetrics()
-		time.Sleep(time.Duration(S.backupTimer) * time.Second)
+		select {
+		case <-Gctx.Done():
+			close(shutdown)
+			return
+		default:
+			S.SaveMetrics()
+			time.Sleep(time.Duration(S.backupTimer) * time.Second)
+		}
 	}
 }
 
-// SaveMetrics - function for saving metrics into file asynchronously. 
+// SaveMetrics - function for saving metrics into file asynchronously.
 func (S *MemStorage) SaveMetrics() (err error) {
 	allMetrics := make([]data.Metrics, len(S.counterStorage)+len(S.gaugeStorage))
 	gaugeMetric := data.Metrics{ID: "", MType: "gauge"}
@@ -59,7 +65,7 @@ func (S *MemStorage) SaveMetrics() (err error) {
 	return nil
 }
 
-// Store - function for initialization in-memory storage from backup file. 
+// Store - function for initialization in-memory storage from backup file.
 func (S *MemStorage) Store() error {
 	allMetrics := make([]data.Metrics, len(S.counterStorage)+len(S.gaugeStorage))
 
