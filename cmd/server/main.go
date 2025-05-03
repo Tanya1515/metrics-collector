@@ -244,7 +244,7 @@ func main() {
 		}
 	}()
 
-	srv := http.Server{Addr: ":8080", Handler: r}
+	srv := http.Server{Addr: serverAddress, Handler: r}
 
 	gracefulSutdown := make(chan os.Signal, 1)
 
