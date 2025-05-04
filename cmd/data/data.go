@@ -39,6 +39,7 @@ type ConfigApp struct {
 	PostgreSQL    string `json:"database_dsn"`   // Credentials for database
 	SecretKey     string `json:"secret_key"`     // Secret key for hashing data
 	CryptoKeyPath string `json:"crypto_key"`     // Path to key for asymmetrical encryption
+	TrustedSubnet string `json:"trusted_subnet"` // Trusted IP address range
 }
 
 // ConfigAgent - type, that describes all fields of the agent configuration
