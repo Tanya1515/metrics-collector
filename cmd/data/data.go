@@ -52,6 +52,8 @@ type ConfigApp struct {
 	SecretKey string `json:"secret_key"`
 	// CryptoKeyPath - path to key for asymmetrical encryption
 	CryptoKeyPath string `json:"crypto_key"`
+	// TrustedSubnet - CIDR, for detecting if agent IP is trusted
+	TrustedSubnet string `json:"trusted_subnet"`
 }
 
 // ConfigAgent - type, that describes all fields of the agent configuration
@@ -95,10 +97,6 @@ func Compress(metricData *[]Metrics) ([]byte, error) {
 
 	return b.Bytes(), nil
 }
-
-// Парсим публичный ключ из DER-данных
-
-// Проверяем, что это RSA ключ
 
 // EncryptData - function for encrypting metricData
 func EncryptData(data []byte, publicKeyStr []byte) ([]byte, error) {

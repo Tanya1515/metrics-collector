@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -48,7 +49,7 @@ func (App *Application) MiddlewareZipper(next http.HandlerFunc) http.HandlerFunc
 	}
 }
 
-// MiddlewareLogger - function for logging information about processing request. 
+// MiddlewareLogger - function for logging information about processing request.
 func (App *Application) MiddlewareLogger(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		uri := r.RequestURI
@@ -81,7 +82,31 @@ func (App *Application) MiddlewareLogger(h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// MiddlewareHash - function for checking data integrity of request body. 
+// MiddlewareTrustedIP - function for checking, if client IP-address is trusted
+func (App *Application) MiddlewareTrustedIP(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		agentIP := r.Header.Get("X-Real-IP")
+		if agentIP != "" {
+			_, cidr, err := net.ParseCIDR(App.TrustedSubnet)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				App.Logger.Errorln("Error during parsing CIDR")
+				return
+			}
+
+			trustedIP := cidr.Contains(net.IP(agentIP))
+			if !trustedIP {
+				http.Error(w, "Untrusted IP-adress: access denied", http.StatusForbidden)
+				App.Logger.Errorln("Untrusted IP-adress: access denied")
+				return
+			}
+		}
+		// проверить, нужна ли здесь оболочка
+		next(w, r)
+	}
+}
+
+// MiddlewareHash - function for checking data integrity of request body.
 func (App *Application) MiddlewareHash(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		responseData := &ResponseData{

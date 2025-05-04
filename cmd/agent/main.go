@@ -14,6 +14,7 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
+	"net"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -339,6 +340,17 @@ func main() {
 		close(resultChannel)
 	}()
 
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		Logger.Errorln("Error while getting agent IP")
+	}
+	var address string
+	for _, addr := range addrs {
+		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
+			address = ipNet.IP.To4().String()
+		}
+	}
+
 	sem := make(chan struct{}, limitRequests)
 	for {
 		select {
@@ -403,6 +415,7 @@ func main() {
 									SetHeader("Content-Type", "application/json").
 									SetHeader("Content-Encoding", "gzip").
 									SetHeader("X-Encrypted", "rsa").
+									SetHeader("X-Real-IP", address).
 									SetHeader("HashSHA256", hex.EncodeToString(sign)).
 									SetBody(compressedMetrics).
 									Post(requestString)
@@ -410,12 +423,14 @@ func main() {
 								_, err = client.R().
 									SetHeader("Content-Type", "application/json").
 									SetHeader("Content-Encoding", "gzip").
+									SetHeader("X-Real-IP", address).
 									SetHeader("X-Encrypted", "rsa").
 									SetBody(compressedMetrics).
 									Post(requestString)
 							} else {
 								_, err = client.R().
 									SetHeader("Content-Type", "application/json").
+									SetHeader("X-Real-IP", address).
 									SetHeader("Content-Encoding", "gzip").
 									SetBody(compressedMetrics).
 									Post(requestString)

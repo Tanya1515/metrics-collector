@@ -38,6 +38,8 @@ type Application struct {
 	SecretKey string
 	// CryptoKey - key for encrypting incoming data (asymmetrical encryption)
 	CryptoKey string
+	// TrustedSubnet - Mask for trusted subnet
+	TrustedSubnet string
 }
 
 func init() {
@@ -49,6 +51,7 @@ func init() {
 	secretKeyFlag = flag.String("k", "", "secret key for hash")
 	cryptoKeyPathFlag = flag.String("crypto-key", "", "path to key for asymmetrical encryption")
 	configFilePathFlag = flag.String("config", "", "path to config file for the application")
+	trustedSubnetFlag = flag.String("t", "", "CIDR for trusted IP-addresses")
 }
 
 var (
@@ -60,6 +63,7 @@ var (
 	secretKeyFlag      *string
 	cryptoKeyPathFlag  *string
 	configFilePathFlag *string
+	trustedSubnetFlag  *string
 	buildVersion       string = "N/A"
 	buildDate          string = "N/A"
 	buildCommit        string = "N/A"
@@ -197,7 +201,16 @@ func main() {
 		secretKeyHash = configApp.SecretKey
 	}
 
-	App := Application{Storage: Storage, Logger: *logger.Sugar(), SecretKey: secretKeyHash}
+	trustedSubnetMask, trustedSubnetMaskExists := os.LookupEnv("TRUSTED_SUBNET")
+	if !(trustedSubnetMaskExists) {
+		trustedSubnetMask = *trustedSubnetFlag
+	}
+
+	if trustedSubnetMask == "" {
+		trustedSubnetMask = configApp.TrustedSubnet
+	}
+
+	App := Application{Storage: Storage, Logger: *logger.Sugar(), SecretKey: secretKeyHash, TrustedSubnet: trustedSubnetMask}
 
 	App.Logger.Infow(
 		"Starting server",
@@ -222,8 +235,12 @@ func main() {
 	}
 
 	commonMiddlewares := []data.Middleware{}
-	if secretKeyHash != "" {
+	if secretKeyHash != "" && App.TrustedSubnet != "" {
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareHash, App.MiddlewareTrustedIP, App.MiddlewareZipper, App.MiddlewareLogger)
+	} else if secretKeyHash != "" {
 		commonMiddlewares = append(commonMiddlewares, App.MiddlewareHash, App.MiddlewareZipper, App.MiddlewareLogger)
+	} else if App.TrustedSubnet != "" {
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareTrustedIP, App.MiddlewareZipper, App.MiddlewareLogger)
 	} else {
 		commonMiddlewares = append(commonMiddlewares, App.MiddlewareZipper, App.MiddlewareLogger)
 	}
