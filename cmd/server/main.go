@@ -217,7 +217,8 @@ func main() {
 
 	err = Storage.Init(shutdown, Gctx)
 	if err != nil {
-		fmt.Println(err)
+		fileStore = ""
+		App.Logger.Errorln("Error while database initialization: ", err)
 	}
 
 	commonMiddlewares := []data.Middleware{}

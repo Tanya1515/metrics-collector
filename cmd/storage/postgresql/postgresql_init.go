@@ -25,18 +25,7 @@ const (
 
 func (db *PostgreSQLConnection) Init(shutdown chan struct{}, ctx context.Context) error {
 	var err error
-	if db.Restore {
-		err := db.Store(db)
-		if err != nil {
-			return err
-		}
-	}
-
-	if (db.FileStore != "") && (db.BackupTimer != 0) {
-
-		go db.SaveMetricsAsync(shutdown, ctx, db)
-	}
-
+	
 	ps := fmt.Sprintf("host=%s port=%s user=%s password=%s database=%s sslmode=disable",
 		db.Address, db.Port, db.UserName, db.Password, db.DBName)
 
@@ -52,6 +41,18 @@ func (db *PostgreSQLConnection) Init(shutdown chan struct{}, ctx context.Context
 																	Value DOUBLE PRECISION);`)
 	if err != nil {
 		return err
+	}
+
+	if db.Restore {
+		err := db.Store(db)
+		if err != nil {
+			return err
+		}
+	}
+
+	if (db.FileStore != "") && (db.BackupTimer != 0) {
+
+		go db.SaveMetricsAsync(shutdown, ctx, db)
 	}
 
 	return nil
