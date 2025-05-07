@@ -1,4 +1,4 @@
-package storage
+package postgresql
 
 import (
 	sql "database/sql"
@@ -40,6 +40,10 @@ func (db *PostgreSQLConnection) RepositoryAddCounterValue(metricName string, met
 	if err != nil {
 		return fmt.Errorf("error while closing transaction: %w", err)
 	}
+
+	if (db.FileStore != "") && (db.BackupTimer == 0) {
+		db.SaveMetrics(db)
+	}
 	return nil
 }
 
@@ -52,6 +56,10 @@ func (db *PostgreSQLConnection) RepositoryAddGaugeValue(metricName string, metri
 	if err != nil {
 		return fmt.Errorf("error during adding new gauge metricValue: %w", err)
 	}
+
+	if (db.FileStore != "") && (db.BackupTimer == 0) {
+		db.SaveMetrics(db)
+	}
 	return nil
 }
 
@@ -63,6 +71,9 @@ func (db *PostgreSQLConnection) RepositoryAddValue(metricName string, metricValu
 
 	if err != nil {
 		return fmt.Errorf("error during adding new counter metricValue: %w", err)
+	}
+	if (db.FileStore != "") && (db.BackupTimer == 0) {
+		db.SaveMetrics(db)
 	}
 	return nil
 }
@@ -109,6 +120,10 @@ func (db *PostgreSQLConnection) RepositoryAddAllValues(metrics []data.Metrics) e
 	err = tx.Commit()
 	if err != nil {
 		return fmt.Errorf("error while closing transaction: %w", err)
+	}
+
+	if (db.FileStore != "") && (db.BackupTimer == 0) {
+		db.SaveMetrics(db)
 	}
 	return nil
 }

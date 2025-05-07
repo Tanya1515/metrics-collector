@@ -1,4 +1,4 @@
-package storage
+package structure
 
 import (
 	"context"
@@ -17,7 +17,7 @@ type InMemoryStorageSuite struct {
 func (MS *InMemoryStorageSuite) SetupSuite() {
 	MS.Storage = &MemStorage{}
 	chanSh := make(chan struct{})
-	err := MS.Storage.Init(false, "", 0, chanSh, context.Background())
+	err := MS.Storage.Init(chanSh, context.Background())
 
 	MS.NoError(err)
 }

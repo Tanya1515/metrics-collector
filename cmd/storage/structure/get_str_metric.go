@@ -1,4 +1,4 @@
-package storage
+package structure
 
 import (
 	"github.com/pkg/errors"

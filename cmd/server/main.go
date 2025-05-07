@@ -21,6 +21,7 @@ import (
 	"go.uber.org/zap"
 
 	storage "github.com/Tanya1515/metrics-collector.git/cmd/storage"
+
 	psql "github.com/Tanya1515/metrics-collector.git/cmd/storage/postgresql"
 	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
 
@@ -69,6 +70,7 @@ func main() {
 	fmt.Println("Build date: ", buildDate)
 	fmt.Println("Build commit: ", buildCommit)
 	var Storage storage.RepositoryInterface
+	var err error
 	flag.Parse()
 
 	configFilePath, envExists := os.LookupEnv("CONFIG")
@@ -115,6 +117,51 @@ func main() {
 		cryptoKeyPath = configApp.CryptoKeyPath
 	}
 
+	var storeInterval int
+
+	storeIntervalEnv, envExists := os.LookupEnv("STORE_INTERVAL")
+	if !(envExists) {
+		storeInterval = *storeIntervalFlag
+	} else {
+		storeInterval, err = strconv.Atoi(storeIntervalEnv)
+		if err != nil {
+			fmt.Println("Error when converting string to int:", err)
+		}
+	}
+
+	if storeInterval == 300 && configFilePath != "" {
+		if configApp.StoreInterval != "" {
+			storeInterval, err = strconv.Atoi(strings.Split(configApp.StoreInterval, "s")[0])
+			if err != nil {
+				fmt.Println("Error when converting string to int: ", err)
+			}
+		}
+	}
+
+	fileStore, envExists := os.LookupEnv("FILE_STORAGE_PATH")
+	if !(envExists) {
+		fileStore = *fileStorePathFlag
+	}
+
+	if fileStore == "/tmp/metrics-db.json" && configFilePath != "" {
+		fileStore = configApp.FileStorePath
+	}
+
+	var restore bool
+	restoreEnv, envExists := os.LookupEnv("RESTORE")
+	if !(envExists) {
+		restore = *restoreFlag
+	} else {
+		restore, err = strconv.ParseBool(restoreEnv)
+		if err != nil {
+			fmt.Println("Error when converting string to bool: ", err)
+		}
+	}
+
+	if restore && configFilePath != "" {
+		restore = configApp.Restore
+	}
+
 	Gctx, cancelG := context.WithCancel(context.Background())
 	shutdown := make(chan struct{})
 	if postgreSQLAddress != "" {
@@ -129,9 +176,9 @@ func main() {
 			postgreSQLPort = postgreSQLPortDatabase[0]
 		}
 		postgreSQLAddr := postgreSQLAddrPortDatabase[0]
-		Storage = &psql.PostgreSQLConnection{Address: postgreSQLAddr, Port: postgreSQLPort, UserName: "postgres", Password: "postgres", DBName: postgreSQLDatabase}
+		Storage = &psql.PostgreSQLConnection{StoreType: storage.StoreType{Restore: restore, BackupTimer: storeInterval, FileStore: fileStore}, Address: postgreSQLAddr, Port: postgreSQLPort, UserName: "postgres", Password: "postgres", DBName: postgreSQLDatabase}
 	} else {
-		Storage = &str.MemStorage{}
+		Storage = &str.MemStorage{StoreType: storage.StoreType{Restore: restore, BackupTimer: storeInterval, FileStore: fileStore}}
 	}
 
 	logger, err := zap.NewDevelopment()
@@ -157,8 +204,6 @@ func main() {
 		"addr", serverAddress,
 	)
 
-	var storeInterval int
-
 	if cryptoKeyPath != "" {
 		file, err := os.Open(cryptoKeyPath)
 		if err != nil {
@@ -170,50 +215,7 @@ func main() {
 		}
 	}
 
-	storeIntervalEnv, envExists := os.LookupEnv("STORE_INTERVAL")
-	if !(envExists) {
-		storeInterval = *storeIntervalFlag
-	} else {
-		storeInterval, err = strconv.Atoi(storeIntervalEnv)
-		if err != nil {
-			App.Logger.Errorln("Error when converting string to int: ", err)
-		}
-	}
-
-	if storeInterval == 300 && configFilePath != "" {
-		if configApp.StoreInterval != "" {
-			storeInterval, err = strconv.Atoi(strings.Split(configApp.StoreInterval, "s")[0])
-			if err != nil {
-				App.Logger.Errorln("Error when converting string to int: ", err)
-			}
-		}
-	}
-
-	fileStore, envExists := os.LookupEnv("FILE_STORAGE_PATH")
-	if !(envExists) {
-		fileStore = *fileStorePathFlag
-	}
-
-	if fileStore == "/tmp/metrics-db.json" && configFilePath != "" {
-		fileStore = configApp.FileStorePath
-	}
-
-	var restore bool
-	restoreEnv, envExists := os.LookupEnv("RESTORE")
-	if !(envExists) {
-		restore = *restoreFlag
-	} else {
-		restore, err = strconv.ParseBool(restoreEnv)
-		if err != nil {
-			App.Logger.Errorln("Error when converting string to bool: ", err)
-		}
-	}
-
-	if restore && configFilePath != "" {
-		restore = configApp.Restore
-	}
-
-	err = Storage.Init(restore, fileStore, storeInterval, shutdown, Gctx)
+	err = Storage.Init(shutdown, Gctx)
 	if err != nil {
 		fmt.Println(err)
 	}

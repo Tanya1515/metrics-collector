@@ -10,27 +10,41 @@ import (
 	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 )
 
+type StoreStorage interface {
+	SaveMetricsAsync(shutdown chan struct{}, Gctx context.Context)
+
+	SaveMetrics() (err error)
+
+	Store() error
+}
+
+type StoreType struct {
+	Restore bool
+	BackupTimer int
+	FileStore   string
+}
+
 // SaveMetricsAsync - function for saving metrics every
-func (S *MemStorage) SaveMetricsAsync(shutdown chan struct{}, Gctx context.Context) {
+func (S *StoreType) SaveMetricsAsync(shutdown chan struct{}, Gctx context.Context, storage RepositoryInterface) {
 	for {
 		select {
 		case <-Gctx.Done():
 			close(shutdown)
 			return
 		default:
-			S.SaveMetrics()
-			time.Sleep(time.Duration(S.backupTimer) * time.Second)
+			S.SaveMetrics(storage)
+			time.Sleep(time.Duration(S.BackupTimer) * time.Second)
 		}
 	}
 }
 
 // SaveMetrics - function for saving metrics into file asynchronously.
-func (S *MemStorage) SaveMetrics() (err error) {
-	allMetrics := make([]data.Metrics, len(S.counterStorage)+len(S.gaugeStorage))
+func (S *StoreType) SaveMetrics(storage RepositoryInterface) (err error) {
+	allMetrics := make([]data.Metrics, 100)
 	gaugeMetric := data.Metrics{ID: "", MType: "gauge"}
 	counterMetric := data.Metrics{ID: "", MType: "counter"}
 	i := 0
-	allGaugeMetrics, err := S.GetAllGaugeMetrics()
+	allGaugeMetrics, err := storage.GetAllGaugeMetrics()
 	if err != nil {
 		return
 	}
@@ -41,7 +55,7 @@ func (S *MemStorage) SaveMetrics() (err error) {
 		i += 1
 	}
 
-	allCounterMetrics, err := S.GetAllCounterMetrics()
+	allCounterMetrics, err := storage.GetAllCounterMetrics()
 	if err != nil {
 		return
 	}
@@ -57,7 +71,7 @@ func (S *MemStorage) SaveMetrics() (err error) {
 		return
 	}
 
-	err = os.WriteFile(S.fileStore, metricsBytes, 0644)
+	err = os.WriteFile(S.FileStore, metricsBytes, 0644)
 	if err != nil {
 		return
 	}
@@ -66,18 +80,18 @@ func (S *MemStorage) SaveMetrics() (err error) {
 }
 
 // Store - function for initialization in-memory storage from backup file.
-func (S *MemStorage) Store() error {
-	allMetrics := make([]data.Metrics, len(S.counterStorage)+len(S.gaugeStorage))
+func (S *StoreType) Store(storage RepositoryInterface) error {
+	allMetrics := make([]data.Metrics, 100)
 
-	_, err := os.Stat(S.fileStore)
+	_, err := os.Stat(S.FileStore)
 	if errors.Is(err, os.ErrNotExist) {
-		_, err = os.Create(S.fileStore)
+		_, err = os.Create(S.FileStore)
 		if err != nil {
 			return err
 		}
 	}
 
-	dataFromFile, err := os.ReadFile(S.fileStore)
+	dataFromFile, err := os.ReadFile(S.FileStore)
 	if err != nil {
 		return err
 	}
@@ -89,11 +103,11 @@ func (S *MemStorage) Store() error {
 
 	for _, metric := range allMetrics {
 		if metric.MType == "gauge" {
-			S.RepositoryAddGaugeValue(metric.ID, *metric.Value)
+			storage.RepositoryAddGaugeValue(metric.ID, *metric.Value)
 		}
 
 		if metric.MType == "counter" {
-			S.RepositoryAddValue(metric.ID, *metric.Delta)
+			storage.RepositoryAddValue(metric.ID, *metric.Delta)
 		}
 	}
 

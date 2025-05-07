@@ -1,14 +1,16 @@
-package storage
+package postgresql
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
 
+	storage "github.com/Tanya1515/metrics-collector.git/cmd/storage"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 type PostgreSQLConnection struct {
+	storage.StoreType
 	Address  string
 	Port     string
 	UserName string
@@ -21,8 +23,9 @@ const (
 	MetricsTableName = "metrics"
 )
 
-func (db *PostgreSQLConnection) Init(restore bool, fileStore string, backupTimer int, shutdown chan struct{}, ctx context.Context) error {
+func (db *PostgreSQLConnection) Init(shutdown chan struct{}, ctx context.Context) error {
 	var err error
+	
 	ps := fmt.Sprintf("host=%s port=%s user=%s password=%s database=%s sslmode=disable",
 		db.Address, db.Port, db.UserName, db.Password, db.DBName)
 
@@ -38,6 +41,18 @@ func (db *PostgreSQLConnection) Init(restore bool, fileStore string, backupTimer
 																	Value DOUBLE PRECISION);`)
 	if err != nil {
 		return err
+	}
+
+	if db.Restore {
+		err := db.Store(db)
+		if err != nil {
+			return err
+		}
+	}
+
+	if (db.FileStore != "") && (db.BackupTimer != 0) {
+
+		go db.SaveMetricsAsync(shutdown, ctx, db)
 	}
 
 	return nil

@@ -18,7 +18,7 @@ import (
 func ExampleApplication_GetMetricPath() {
 	storage := &str.MemStorage{}
 	chanSh := make(chan struct{})
-	storage.Init(false, "", 0, chanSh, context.Background())
+	storage.Init(chanSh, context.Background())
 	storage.RepositoryAddCounterValue("PollCount", 1)
 	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
 
@@ -61,7 +61,7 @@ func ExampleApplication_GetMetricPath() {
 func ExampleApplication_UpdateValuePath() {
 	storage := &str.MemStorage{}
 	chanSh := make(chan struct{})
-	storage.Init(false, "", 0, chanSh, context.Background())
+	storage.Init(chanSh, context.Background())
 	storage.RepositoryAddCounterValue("PollCount", 1)
 	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
 
@@ -103,7 +103,7 @@ func ExampleApplication_UpdateValuePath() {
 func ExampleApplication_GetMetric() {
 	storage := &str.MemStorage{}
 	chanSh := make(chan struct{})
-	storage.Init(false, "", 0, chanSh, context.Background())
+	storage.Init(chanSh, context.Background())
 	storage.RepositoryAddCounterValue("PollCount", 1)
 	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
 
@@ -150,7 +150,7 @@ func ExampleApplication_UpdateValue() {
 	storage := &str.MemStorage{}
 	var counterMetrciValue int64 = 4
 	chanSh := make(chan struct{})
-	storage.Init(false, "", 0, chanSh, context.Background())
+	storage.Init(chanSh, context.Background())
 	storage.RepositoryAddCounterValue("PollCount", 1)
 	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
 
@@ -202,7 +202,7 @@ func ExampleApplication_UpdateValue() {
 func ExampleApplication_UpdateAllValues() {
 	storage := &str.MemStorage{}
 	chanSh := make(chan struct{})
-	storage.Init(false, "", 0, chanSh, context.Background())
+	storage.Init(chanSh, context.Background())
 	storage.RepositoryAddCounterValue("PollCount", 1)
 	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
 
