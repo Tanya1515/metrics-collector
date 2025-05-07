@@ -376,13 +376,11 @@ func (App *Application) CheckStorageConnection() http.HandlerFunc {
 		if storageAvailable != nil {
 			http.Error(rw, storageAvailable.Error(), http.StatusInternalServerError)
 			App.Logger.Errorln("Error during Storage connection:", storageAvailable)
-			return
 		}
 		switch ctx.Err() {
 		case context.Canceled:
 			http.Error(rw, storageAvailable.Error(), http.StatusInternalServerError)
 			App.Logger.Errorln("Error during Storage connection:", storageAvailable)
-			return
 		default:
 			rw.Header().Set("Content-Type", "application/json")
 			rw.WriteHeader(http.StatusOK)
