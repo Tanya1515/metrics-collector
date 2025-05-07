@@ -1,3 +1,4 @@
+// Retryerr - package for functions, that will process errors.
 package retryerr
 
 import (
@@ -9,6 +10,7 @@ import (
 	"github.com/lib/pq"
 )
 
+// CheckErrorType - function, that detects if error is network or not.
 func CheckErrorType(err error) bool {
 	if err, ok := err.(*pq.Error); ok {
 		if (err.Code == pgerrcode.ConnectionException) || (err.Code == pgerrcode.ConnectionDoesNotExist) || (err.Code == pgerrcode.ConnectionFailure) || (err.Code == pgerrcode.InvalidTransactionInitiation) {

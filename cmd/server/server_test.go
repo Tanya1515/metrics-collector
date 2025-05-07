@@ -19,7 +19,7 @@ import (
 	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
 )
 
-func TestProcessRequest(t *testing.T) {
+func TestUpdateValuePath(t *testing.T) {
 
 	type httpResult struct {
 		code        int
@@ -377,7 +377,7 @@ func TestGetMetric(t *testing.T) {
 			if err != nil {
 				panic(err)
 			}
-			request := httptest.NewRequest(http.MethodGet, "/value", &buf)
+			request := httptest.NewRequest(http.MethodPost, "/value", &buf)
 
 			logger, err := zap.NewDevelopment()
 			if err != nil {
@@ -402,5 +402,359 @@ func TestGetMetric(t *testing.T) {
 			assert.Equal(t, test.result.response, string(resBody))
 			assert.Equal(t, test.result.contentType, res.Header.Get("Content-Type"))
 		})
+	}
+}
+
+func TestGetMetricPath(t *testing.T) {
+	type httpResult struct {
+		code        int
+		response    string
+		contentType string
+	}
+	tests := []struct {
+		name       string
+		request    string
+		metricType string
+		metricName string
+		storage    *str.MemStorage
+		result     httpResult
+	}{
+		{
+			name:       "test: Send incorrect metric type",
+			request:    "/value/",
+			metricType: "test",
+			metricName: "PollCount",
+			storage:    &str.MemStorage{},
+			result: httpResult{
+				code:        400,
+				response:    "Error 400: Invalid metric type: test\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name:       "test: Get correct counter metric",
+			request:    "/value/",
+			metricType: "counter",
+			metricName: "PollCount",
+			storage:    &str.MemStorage{},
+			result: httpResult{
+				code:        200,
+				response:    "1",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name:       "test: Get correct gauge metric",
+			request:    "/value/",
+			metricType: "gauge",
+			metricName: "BuckHashSys",
+			storage:    &str.MemStorage{},
+			result: httpResult{
+				code:        200,
+				response:    "0.1",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name:       "test: Get not existing gauge metric",
+			request:    "/value/",
+			metricType: "gauge",
+			metricName: "GaugeTest",
+			storage:    &str.MemStorage{},
+			result: httpResult{
+				code:        404,
+				response:    "Error 404: GaugeTest does not exist in gauge storage: ErrMetricExists\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name:       "test: Get not existing counter metric",
+			request:    "/value/",
+			metricType: "counter",
+			metricName: "PollCountEx",
+			storage:    &str.MemStorage{},
+			result: httpResult{
+				code:        404,
+				response:    "Error 404: PollCountEx does not exist in counter storage: ErrMetricExists\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name:       "test: Get request without metric name",
+			request:    "/value/",
+			metricType: "counter",
+			metricName: "",
+			storage:    &str.MemStorage{},
+			result: httpResult{
+				code:        404,
+				response:    "Error 404: Metric name was not found\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run("Test:", func(t *testing.T) {
+			err := test.storage.Init(false, "", 0)
+			if err != nil {
+				panic(err)
+			}
+			test.storage.RepositoryAddCounterValue("PollCount", 1)
+			test.storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
+
+			request := httptest.NewRequest(http.MethodPost, test.request, nil)
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("metricType", test.metricType)
+			rctx.URLParams.Add("metricName", test.metricName)
+			request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, rctx))
+
+			logger, err := zap.NewDevelopment()
+			if err != nil {
+				panic(err)
+			}
+
+			defer logger.Sync()
+			App := Application{Storage: test.storage, Logger: *logger.Sugar()}
+
+			w := httptest.NewRecorder()
+
+			h := http.HandlerFunc(App.GetMetricPath())
+			h(w, request)
+
+			res := w.Result()
+			assert.Equal(t, test.result.code, res.StatusCode)
+
+			defer res.Body.Close()
+			resBody, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, test.result.response, string(resBody))
+			assert.Equal(t, test.result.contentType, res.Header.Get("Content-Type"))
+		})
+	}
+
+}
+
+func TestUpdateAllValues(t *testing.T) {
+	var gaugeMetricValue = 1.5
+
+	type httpResult struct {
+		code        int
+		response    string
+		contentType string
+	}
+	tests := []struct {
+		name    string
+		request string
+		metrics []data.Metrics
+		storage *str.MemStorage
+		result  httpResult
+	}{
+		{
+			name:    "test: Add correct metrics",
+			request: "/updates/",
+			metrics: []data.Metrics{{ID: "GaugeMetric", MType: "gauge", Value: &gaugeMetricValue}},
+			storage: &str.MemStorage{},
+			result: httpResult{
+				code:        200,
+				contentType: "application/json",
+			},
+		},
+
+		{
+			name:    "test: Add metric without name",
+			request: "/updates/",
+			metrics: []data.Metrics{{ID: "", MType: "gauge", Value: &gaugeMetricValue}},
+			storage: &str.MemStorage{},
+			result: httpResult{
+				code:        404,
+				response:    "Error 404: Metric name was not found\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+
+		{
+			name:    "test: Add metric with incorrect type",
+			request: "/updates/",
+			metrics: []data.Metrics{{ID: "GaugeMetric", MType: "test", Value: &gaugeMetricValue}},
+			storage: &str.MemStorage{},
+			result: httpResult{
+				code:        400,
+				response:    "Error 400: Invalid metric type: test\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run("Test:", func(t *testing.T) {
+			err := test.storage.Init(false, "", 0)
+			if err != nil {
+				panic(err)
+			}
+
+			var buf bytes.Buffer
+			bodyRequestEncode := json.NewEncoder(&buf)
+			err = bodyRequestEncode.Encode(test.metrics)
+			if err != nil {
+				panic(err)
+			}
+
+			request := httptest.NewRequest(http.MethodGet, test.request, &buf)
+			logger, err := zap.NewDevelopment()
+			if err != nil {
+				panic(err)
+			}
+
+			defer logger.Sync()
+			App := Application{Storage: test.storage, Logger: *logger.Sugar()}
+
+			w := httptest.NewRecorder()
+
+			h := http.HandlerFunc(App.MiddlewareZipper(App.UpdateAllValues()))
+
+			h(w, request)
+
+			res := w.Result()
+			assert.Equal(t, test.result.code, res.StatusCode)
+
+			defer res.Body.Close()
+		})
+	}
+}
+
+func BenchmarkGetMetricPath(b *testing.B) {
+	storage := &str.MemStorage{}
+	err := storage.Init(false, "", 0)
+	if err != nil {
+		panic(err)
+	}
+	storage.RepositoryAddCounterValue("PollCount", 1)
+	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
+
+	request := httptest.NewRequest("GET", "/value/", nil)
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("metricType", "counter")
+	rctx.URLParams.Add("metricName", "PollCount")
+	req := request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, rctx))
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+
+	defer logger.Sync()
+	App := Application{Storage: storage, Logger: *logger.Sugar()}
+
+	w := httptest.NewRecorder()
+	handler := http.HandlerFunc(App.GetMetricPath())
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		handler.ServeHTTP(w, req)
+	}
+}
+
+func BenchmarkUpdateValue(b *testing.B) {
+	storage := &str.MemStorage{}
+	var counterMetrciValue int64 = 4
+	metric := &data.Metrics{ID: "value", MType: "counter", Delta: &counterMetrciValue}
+	var buf bytes.Buffer
+	err := storage.Init(false, "", 0)
+	if err != nil {
+		panic(err)
+	}
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+
+	defer logger.Sync()
+	App := Application{Storage: storage, Logger: *logger.Sugar()}
+	w := httptest.NewRecorder()
+	handler := http.HandlerFunc(App.UpdateValue())
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bodyRequestEncode := json.NewEncoder(&buf)
+		err = bodyRequestEncode.Encode(metric)
+		if err != nil {
+			panic(err)
+		}
+
+		request := httptest.NewRequest(http.MethodPost, "/update/", &buf)
+		
+		
+		handler.ServeHTTP(w, request)
+	}
+
+}
+
+func BenchmarkUpdateValuePath(b *testing.B) {
+	storage := &str.MemStorage{}
+	err := storage.Init(false, "", 0)
+	if err != nil {
+		panic(err)
+	}
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+
+	defer logger.Sync()
+	App := Application{Storage: storage, Logger: *logger.Sugar()}
+	request := httptest.NewRequest("POST", "/value/", nil)
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("metricType", "counter")
+	rctx.URLParams.Add("metricName", "PollCount")
+	rctx.URLParams.Add("metricValue", "4")
+	req := request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	handler := http.HandlerFunc(App.UpdateValuePath())
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		handler.ServeHTTP(w, req)
+	}
+}
+
+func BenchmarkGetMetric(b *testing.B) {
+	storage := &str.MemStorage{}
+	err := storage.Init(false, "", 0)
+	if err != nil {
+		panic(err)
+	}
+	storage.RepositoryAddCounterValue("PollCount", 1)
+	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
+
+	metric := &data.Metrics{ID: "PollCount", MType: "counter"}
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+
+	defer logger.Sync()
+	App := Application{Storage: storage, Logger: *logger.Sugar()}
+
+	var buf bytes.Buffer
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bodyRequestEncode := json.NewEncoder(&buf)
+		err = bodyRequestEncode.Encode(metric)
+		if err != nil {
+			panic(err)
+		}
+
+		request := httptest.NewRequest("POST", "/value/", &buf)
+
+		w := httptest.NewRecorder()
+		handler := http.HandlerFunc(App.GetMetric())
+
+		handler.ServeHTTP(w, request)
 	}
 }

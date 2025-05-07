@@ -21,6 +21,8 @@ import (
 	retryerr "github.com/Tanya1515/metrics-collector.git/cmd/errors"
 )
 
+// UpdateValuePath - handler, that updates metric in PostgreSQL or in-memory storage.
+// The function gets values from http-request as {metricType}/{metricName}/{metricValue}.
 func (App *Application) UpdateValuePath() http.HandlerFunc {
 	updateValuefunc := func(rw http.ResponseWriter, r *http.Request) {
 		var metricData data.Metrics
@@ -49,12 +51,12 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 				App.Logger.Errorln("Invalid metric value:", err)
 				return
 			}
-			
+
 			for i := 0; i <= 3; i++ {
 				err = App.Storage.RepositoryAddCounterValue(metricName, metricValueInt64)
 				if err == nil {
 					break
-				}  
+				}
 				if !(retryerr.CheckErrorType(err)) || (i == 3) {
 					http.Error(rw, fmt.Sprintf("Error 500: Error while adding counter metric %s to Storage", metricData.ID), http.StatusInternalServerError)
 					App.Logger.Errorln("Error while adding counter metric to Storage:", err)
@@ -63,7 +65,7 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+					time.Sleep(time.Duration(i+i+1) * time.Second)
 				}
 			}
 		}
@@ -79,7 +81,7 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 				err = App.Storage.RepositoryAddGaugeValue(metricName, metricValueFloat64)
 				if err == nil {
 					break
-				} 
+				}
 				if !(retryerr.CheckErrorType(err)) || (i == 3) {
 					http.Error(rw, fmt.Sprintf("Error 500: Error while adding gauge metric %s to Storage", metricName), http.StatusInternalServerError)
 					App.Logger.Errorln("Error while adding gauge metric to Storage:", err)
@@ -88,7 +90,7 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+					time.Sleep(time.Duration(i+i+1) * time.Second)
 				}
 			}
 		}
@@ -103,6 +105,8 @@ func (App *Application) UpdateValuePath() http.HandlerFunc {
 	return http.HandlerFunc(updateValuefunc)
 }
 
+// UpdateValue - handler, that updates metric in PostgreSQL or in-memory storage.
+// The function gets all data from request body.
 func (App *Application) UpdateValue() http.HandlerFunc {
 	updateValuefunc := func(rw http.ResponseWriter, r *http.Request) {
 		var metricData data.Metrics
@@ -155,7 +159,7 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 				err = App.Storage.RepositoryAddCounterValue(metricData.ID, *metricData.Delta)
 				if err == nil {
 					break
-				}  
+				}
 				if !(retryerr.CheckErrorType(err)) || (i == 3) {
 					http.Error(rw, fmt.Sprintf("Error 500: Error while adding counter metric %s to Storage", metricData.ID), http.StatusInternalServerError)
 					App.Logger.Errorln("Error while adding counter metric to Storage:", err)
@@ -164,7 +168,7 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+					time.Sleep(time.Duration(i+i+1) * time.Second)
 				}
 			}
 		}
@@ -177,11 +181,11 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 					http.Error(rw, fmt.Sprintf("Error 500: Error while adding gauge metric %s to Storage", metricData.ID), http.StatusInternalServerError)
 					App.Logger.Errorln("Error while adding gauge metric to Storage:", err)
 					return
-				} 
+				}
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+					time.Sleep(time.Duration(i+i+1) * time.Second)
 				}
 			}
 		}
@@ -207,6 +211,7 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 	return http.HandlerFunc(updateValuefunc)
 }
 
+// HTMLMetrics - handler, that processes metrics from PostgreSQL or in-memory storage and display them in html-formet.
 func (App *Application) HTMLMetrics() http.HandlerFunc {
 	htmlMetricsfunc := func(rw http.ResponseWriter, r *http.Request) {
 
@@ -217,7 +222,7 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 			allGaugeMetrics, err = App.Storage.GetAllGaugeMetrics()
 			if err == nil {
 				break
-			} 
+			}
 			if !(retryerr.CheckErrorType(err)) || (i == 3) {
 				http.Error(rw, "Error 500: Error while getting all gauge metrics", http.StatusInternalServerError)
 				App.Logger.Errorln(err)
@@ -226,7 +231,7 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 			if i == 0 {
 				time.Sleep(1 * time.Second)
 			} else {
-				time.Sleep(time.Duration(i + i + 1) * time.Second)
+				time.Sleep(time.Duration(i+i+1) * time.Second)
 			}
 		}
 		for key, value := range allGaugeMetrics {
@@ -251,7 +256,7 @@ func (App *Application) HTMLMetrics() http.HandlerFunc {
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+					time.Sleep(time.Duration(i+i+1) * time.Second)
 				}
 			}
 		}
@@ -283,6 +288,8 @@ Gauge metrics:
 	return http.HandlerFunc(htmlMetricsfunc)
 }
 
+// GetMetricPath - handler, that retrieve metrics value from PostgreSQL or in-memory storage and return the value.
+// The function gets all metric type and name from URL-path.
 func (App *Application) GetMetricPath() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		metricType := chi.URLParam(r, "metricType")
@@ -309,7 +316,7 @@ func (App *Application) GetMetricPath() http.HandlerFunc {
 					if i == 0 {
 						time.Sleep(1 * time.Second)
 					} else {
-						time.Sleep(time.Duration(i + i + 1) * time.Second)
+						time.Sleep(time.Duration(i+i+1) * time.Second)
 					}
 				}
 
@@ -334,7 +341,7 @@ func (App *Application) GetMetricPath() http.HandlerFunc {
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+					time.Sleep(time.Duration(i+i+1) * time.Second)
 				}
 			}
 			metricRes = strconv.FormatFloat(metricValue, 'f', -1, 64)
@@ -358,6 +365,8 @@ func (App *Application) GetMetricPath() http.HandlerFunc {
 	}
 }
 
+// CheckStorageConnection - handler, that checks if connection to PosthreSQL is alive.
+// The function accepts /ping request and return 200, if everything is ok.
 func (App *Application) CheckStorageConnection() http.HandlerFunc {
 	checkStorageConnectionfunc := func(rw http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -380,6 +389,8 @@ func (App *Application) CheckStorageConnection() http.HandlerFunc {
 	return http.HandlerFunc(checkStorageConnectionfunc)
 }
 
+// GetMetric - handler, that retrieve metrics value from PostgreSQL or in-memory storage and return the value.
+// The function gets all data about metrics from request body.
 func (App *Application) GetMetric() http.HandlerFunc {
 	getMetricfunc := func(rw http.ResponseWriter, r *http.Request) {
 		metricData := data.Metrics{}
@@ -393,7 +404,7 @@ func (App *Application) GetMetric() http.HandlerFunc {
 		}
 		if err = json.Unmarshal(buf.Bytes(), &metricData); err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			App.Logger.Errorln("Error during deserialization")
+			App.Logger.Errorln("Error during deserialization: ", err)
 			return
 		}
 
@@ -408,18 +419,18 @@ func (App *Application) GetMetric() http.HandlerFunc {
 				metricValue, err = App.Storage.GetCounterValueByName(metricData.ID)
 				if err == nil {
 					break
-				} 
-				
+				}
+
 				if !(retryerr.CheckErrorType(err)) || (i == 3) {
 					http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
 					App.Logger.Errorln("Error in CounterStorage:", err)
 					return
-				} 
-				
+				}
+
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+					time.Sleep(time.Duration(i+i+1) * time.Second)
 				}
 			}
 			metricData.Delta = &metricValue
@@ -429,7 +440,7 @@ func (App *Application) GetMetric() http.HandlerFunc {
 				metricValue, err = App.Storage.GetGaugeValueByName(metricData.ID)
 				if err == nil {
 					break
-				} 
+				}
 				if !(retryerr.CheckErrorType(err)) || (i == 3) {
 					http.Error(rw, fmt.Sprintf("Error 404: %s", err), http.StatusNotFound)
 					App.Logger.Errorln("Error in GaugeStorage:", err)
@@ -439,7 +450,7 @@ func (App *Application) GetMetric() http.HandlerFunc {
 				if i == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+					time.Sleep(time.Duration(i+i+1) * time.Second)
 				}
 			}
 			metricData.Value = &metricValue
@@ -469,6 +480,7 @@ func (App *Application) GetMetric() http.HandlerFunc {
 	return http.HandlerFunc(getMetricfunc)
 }
 
+// UpdateAllValues - handler, that updates all values. The function works with pool of data.
 func (App *Application) UpdateAllValues() http.HandlerFunc {
 	updateAllValuesfunc := func(rw http.ResponseWriter, r *http.Request) {
 		metricDataList := make([]data.Metrics, 100)
@@ -522,7 +534,7 @@ func (App *Application) UpdateAllValues() http.HandlerFunc {
 			err = App.Storage.RepositoryAddAllValues(metricDataList)
 			if err == nil {
 				break
-			}  
+			}
 			if !(retryerr.CheckErrorType(err)) || (i == 3) {
 				http.Error(rw, fmt.Sprintf("Error while adding all metrics to storage: %s", err), http.StatusInternalServerError)
 				App.Logger.Errorln("Error while adding all metrics to storage", err)
@@ -532,9 +544,12 @@ func (App *Application) UpdateAllValues() http.HandlerFunc {
 			if i == 0 {
 				time.Sleep(1 * time.Second)
 			} else {
-					time.Sleep(time.Duration(i + i + 1) * time.Second)
+				time.Sleep(time.Duration(i+i+1) * time.Second)
 			}
 		}
+
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusOK)
 	}
 
 	return http.HandlerFunc(updateAllValuesfunc)

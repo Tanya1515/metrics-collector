@@ -14,6 +14,7 @@ import (
 	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 )
 
+// MiddlewareZipper - middleware for unpacking data from zip archive.
 func (App *Application) MiddlewareZipper(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		responseData := &ResponseData{
@@ -47,6 +48,7 @@ func (App *Application) MiddlewareZipper(next http.HandlerFunc) http.HandlerFunc
 	}
 }
 
+// MiddlewareLogger - function for logging information about processing request. 
 func (App *Application) MiddlewareLogger(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		uri := r.RequestURI
@@ -79,6 +81,7 @@ func (App *Application) MiddlewareLogger(h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// MiddlewareHash - function for checking data integrity of request body. 
 func (App *Application) MiddlewareHash(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		responseData := &ResponseData{
@@ -126,7 +129,7 @@ func (App *Application) MiddlewareHash(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// ... - variardic parameter, that can get any amount of parameters of type data.Middleware
+// MiddlewareChain - function for processing chain of middlewares.
 func (App *Application) MiddlewareChain(h http.HandlerFunc, m ...data.Middleware) http.HandlerFunc {
 	for _, wrap := range m {
 		h = wrap(h)
