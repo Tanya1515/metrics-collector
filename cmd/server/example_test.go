@@ -17,7 +17,8 @@ import (
 
 func ExampleApplication_GetMetricPath() {
 	storage := &str.MemStorage{}
-	storage.Init(false, "", 0)
+	chanSh := make(chan struct{})
+	storage.Init(chanSh, context.Background())
 	storage.RepositoryAddCounterValue("PollCount", 1)
 	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
 
@@ -44,8 +45,11 @@ func ExampleApplication_GetMetricPath() {
 	res := w.Result()
 
 	resBody, err := io.ReadAll(res.Body)
+	
+	if err != nil {
+		panic(err)
+	}
 	defer res.Body.Close()
-
 	fmt.Println(res.StatusCode)
 	fmt.Println(string(resBody))
 
@@ -56,7 +60,8 @@ func ExampleApplication_GetMetricPath() {
 
 func ExampleApplication_UpdateValuePath() {
 	storage := &str.MemStorage{}
-	storage.Init(false, "", 0)
+	chanSh := make(chan struct{})
+	storage.Init(chanSh, context.Background())
 	storage.RepositoryAddCounterValue("PollCount", 1)
 	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
 
@@ -97,7 +102,8 @@ func ExampleApplication_UpdateValuePath() {
 
 func ExampleApplication_GetMetric() {
 	storage := &str.MemStorage{}
-	storage.Init(false, "", 0)
+	chanSh := make(chan struct{})
+	storage.Init(chanSh, context.Background())
 	storage.RepositoryAddCounterValue("PollCount", 1)
 	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
 
@@ -129,7 +135,9 @@ func ExampleApplication_GetMetric() {
 	fmt.Println(res.StatusCode)
 
 	resBody, err := io.ReadAll(res.Body)
-
+	if err != nil {
+		panic(err)
+	}
 	fmt.Println(string(resBody))
 
 	// Output:
@@ -141,7 +149,8 @@ func ExampleApplication_GetMetric() {
 func ExampleApplication_UpdateValue() {
 	storage := &str.MemStorage{}
 	var counterMetrciValue int64 = 4
-	storage.Init(false, "", 0)
+	chanSh := make(chan struct{})
+	storage.Init(chanSh, context.Background())
 	storage.RepositoryAddCounterValue("PollCount", 1)
 	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
 
@@ -173,6 +182,10 @@ func ExampleApplication_UpdateValue() {
 	fmt.Println(res.StatusCode)
 
 	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
 
 	fmt.Println(string(resBody))
 
@@ -188,7 +201,8 @@ func ExampleApplication_UpdateValue() {
 
 func ExampleApplication_UpdateAllValues() {
 	storage := &str.MemStorage{}
-	storage.Init(false, "", 0)
+	chanSh := make(chan struct{})
+	storage.Init(chanSh, context.Background())
 	storage.RepositoryAddCounterValue("PollCount", 1)
 	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
 
