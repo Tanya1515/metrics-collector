@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"flag"
+	"fmt"
 	"math/rand"
 	"net/http"
 	_ "net/http/pprof"
@@ -38,6 +39,9 @@ var (
 	// secretKeyFlag - flag for secret key for
 	secretKeyFlag           *string
 	limitServerRequestsFlag *int
+	buildVersion            string = "N/A"
+	buildDate               string = "N/A"
+	buildCommit             string = "N/A"
 )
 
 func init() {
@@ -124,7 +128,7 @@ func GetMetrics(chanSend chan int64, chanMetrics chan []data.Metrics, timer time
 	}
 }
 
-// GetMetricsUtil - function, that collects total/free memory and utilizatin of every cpu. 
+// GetMetricsUtil - function, that collects total/free memory and utilizatin of every cpu.
 func GetMetricsUtil(chanSend chan int64, chanMetrics chan []data.Metrics, timer time.Duration) {
 	var memStats mem.VirtualMemoryStat
 	mapMetrics := make(map[string]float64)
@@ -173,6 +177,9 @@ func MakeString(serverAddress string) string {
 }
 
 func main() {
+	fmt.Println("Build version: ", buildVersion)
+	fmt.Println("Build date: ", buildDate)
+	fmt.Println("Build commit: ", buildCommit)
 	var err error
 	chansPollCount := []chan int64{
 		make(chan int64),

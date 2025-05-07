@@ -48,9 +48,15 @@ var (
 	restoreFlag       *bool
 	postgreSQLFlag    *string
 	secretKeyFlag     *string
+	buildVersion      string = "N/A"
+	buildDate         string = "N/A"
+	buildCommit       string = "N/A"
 )
 
 func main() {
+	fmt.Println("Build version: ", buildVersion)
+	fmt.Println("Build date: ", buildDate)
+	fmt.Println("Build commit: ", buildCommit)
 	var Storage storage.RepositoryInterface
 
 	flag.Parse()
@@ -101,8 +107,8 @@ func main() {
 		"addr", serverAddress,
 	)
 
-	storeInterval := 300
-	restore := true
+	var storeInterval int
+
 	storeIntervalEnv, envExists := os.LookupEnv("STORE_INTERVAL")
 	if !(envExists) {
 		storeInterval = *storeIntervalFlag
@@ -117,7 +123,7 @@ func main() {
 	if !(envExists) {
 		fileStore = *fileStorePathFlag
 	}
-
+	var restore bool
 	restoreEnv, envExists := os.LookupEnv("RESTORE")
 	if !(envExists) {
 		restore = *restoreFlag

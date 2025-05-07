@@ -44,8 +44,11 @@ func ExampleApplication_GetMetricPath() {
 	res := w.Result()
 
 	resBody, err := io.ReadAll(res.Body)
+	
+	if err != nil {
+		panic(err)
+	}
 	defer res.Body.Close()
-
 	fmt.Println(res.StatusCode)
 	fmt.Println(string(resBody))
 
@@ -129,7 +132,9 @@ func ExampleApplication_GetMetric() {
 	fmt.Println(res.StatusCode)
 
 	resBody, err := io.ReadAll(res.Body)
-
+	if err != nil {
+		panic(err)
+	}
 	fmt.Println(string(resBody))
 
 	// Output:
@@ -173,6 +178,10 @@ func ExampleApplication_UpdateValue() {
 	fmt.Println(res.StatusCode)
 
 	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
 
 	fmt.Println(string(resBody))
 
