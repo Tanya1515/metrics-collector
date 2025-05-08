@@ -4,7 +4,12 @@ package data
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"net/http"
 )
@@ -31,6 +36,42 @@ type Metrics struct {
 	Value *float64 `json:"value,omitempty"`
 }
 
+// ConfigApp - type, that describes all fields of the application config file
+type ConfigApp struct {
+	// ServerAddress - server address
+	ServerAddress string `json:"address"`
+	// StoreInterval - time duration for saving metrics
+	StoreInterval string `json:"store_interval"`
+	// FileStorePath - filename for storing metrics
+	FileStorePath string `json:"store_file"`
+	// Restore - flag for storing all info
+	Restore bool `json:"restore"`
+	// PostgreSQL - credentials for database
+	PostgreSQL string `json:"database_dsn"`
+	// SecretKey - secret key for hashing data
+	SecretKey string `json:"secret_key"`
+	// CryptoKeyPath - path to key for asymmetrical encryption
+	CryptoKeyPath string `json:"crypto_key"`
+	// TrustedSubnet - CIDR, for detecting if agent IP is trusted
+	TrustedSubnet string `json:"trusted_subnet"`
+}
+
+// ConfigAgent - type, that describes all fields of the agent configuration
+type ConfigAgent struct {
+	// ReportInterval - time duration for sending metrics
+	ReportInterval string `json:"report_interval"`
+	// PollInterval - time duration for getting metrics
+	PollInterval string `json:"poll_interval"`
+	// ServerAddress - server address for sending metrics
+	ServerAddress string `json:"address"`
+	// SecretKey - secret key for creating hash
+	SecretKey string `json:"secret_key"`
+	// CryptoKeyPath - limit of requests to server
+	CryptoKeyPath string `json:"crypto_key"`
+	// LimitServerRequests - path to key for asymmetrical encryption
+	LimitServerRequests int `json:"limit_requests"`
+}
+
 // Compress - function for compressing list of metrics to slice of bytes
 func Compress(metricData *[]Metrics) ([]byte, error) {
 	var b bytes.Buffer
@@ -55,4 +96,48 @@ func Compress(metricData *[]Metrics) ([]byte, error) {
 	}
 
 	return b.Bytes(), nil
+}
+
+// EncryptData - function for encrypting metricData
+func EncryptData(data []byte, publicKeyStr []byte) ([]byte, error) {
+	block, _ := pem.Decode(publicKeyStr)
+	if block == nil {
+		return nil, fmt.Errorf("failed to decode PEM block")
+	}
+
+	if block.Type != "PUBLIC KEY" {
+		return nil, fmt.Errorf("invalid PEM block type: %s", block.Type)
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse public key: %v", err)
+	}
+
+	rsaPub, ok := pub.(*rsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("not an RSA public key")
+	}
+
+	ciphertext, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, rsaPub, data, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return ciphertext, nil
+}
+
+// DecryptData - function for decrypting data
+func DecryptData(privateKeyStr string, data []byte) ([]byte, error) {
+
+	block, _ := pem.Decode([]byte(privateKeyStr))
+	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	plaintext, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, privateKey, data, nil)
+	if err != nil {
+		return nil, err
+	}
+	return plaintext, nil
 }

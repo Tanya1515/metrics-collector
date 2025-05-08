@@ -4,18 +4,24 @@
 package main
 
 import (
+	"bufio"
+	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 
 	storage "github.com/Tanya1515/metrics-collector.git/cmd/storage"
+
 	psql "github.com/Tanya1515/metrics-collector.git/cmd/storage/postgresql"
 	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
 
@@ -28,43 +34,140 @@ type Application struct {
 	Storage storage.RepositoryInterface
 	// Logger - logger for saving info about all events in the application.
 	Logger zap.SugaredLogger
-	// SecretKey - key for decrypting incoming data
+	// SecretKey - key for chacking hash of incoming data
 	SecretKey string
+	// CryptoKey - key for encrypting incoming data (asymmetrical encryption)
+	CryptoKey string
+	// TrustedSubnet - Mask for trusted subnet
+	TrustedSubnet string
 }
 
 func init() {
 	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
 	postgreSQLFlag = flag.String("d", "", "credentials for database")
-	storeIntervalFlag = flag.Int("i", 300, "time duration for saving metrics")
+	storeIntervalFlag = flag.Int("i", 1, "time duration for saving metrics")
 	fileStorePathFlag = flag.String("f", "/tmp/metrics-db.json", "filename for storing metrics")
 	restoreFlag = flag.Bool("r", true, "store all info")
 	secretKeyFlag = flag.String("k", "", "secret key for hash")
+	cryptoKeyPathFlag = flag.String("crypto-key", "", "path to key for asymmetrical encryption")
+	configFilePathFlag = flag.String("config", "", "path to config file for the application")
+	trustedSubnetFlag = flag.String("t", "", "CIDR for trusted IP-addresses")
 }
 
 var (
-	serverAddressFlag *string
-	storeIntervalFlag *int
-	fileStorePathFlag *string
-	restoreFlag       *bool
-	postgreSQLFlag    *string
-	secretKeyFlag     *string
+	serverAddressFlag  *string
+	storeIntervalFlag  *int
+	fileStorePathFlag  *string
+	restoreFlag        *bool
+	postgreSQLFlag     *string
+	secretKeyFlag      *string
+	cryptoKeyPathFlag  *string
+	configFilePathFlag *string
+	trustedSubnetFlag  *string
+	buildVersion       string = "N/A"
+	buildDate          string = "N/A"
+	buildCommit        string = "N/A"
 )
 
 func main() {
+	fmt.Println("Build version: ", buildVersion)
+	fmt.Println("Build date: ", buildDate)
+	fmt.Println("Build commit: ", buildCommit)
 	var Storage storage.RepositoryInterface
-
+	var err error
 	flag.Parse()
+
+	configFilePath, envExists := os.LookupEnv("CONFIG")
+	if !(envExists) {
+		configFilePath = *configFilePathFlag
+	}
+
+	configApp := new(data.ConfigApp)
+	if configFilePath != "" {
+		config, err := os.ReadFile(configFilePath)
+		if err != nil {
+			fmt.Println("Error while parsing config file: ", err)
+		}
+
+		err = json.Unmarshal(config, configApp)
+		if err != nil {
+			fmt.Println("Error while unmarshaling config data: ", err)
+		}
+	}
 
 	serverAddress, envExists := os.LookupEnv("ADDRESS")
 	if !(envExists) {
 		serverAddress = *serverAddressFlag
 	}
 
+	if serverAddress == "localhost:8080" && configFilePath != "" {
+		serverAddress = configApp.ServerAddress
+	}
+
 	postgreSQLAddress, envExists := os.LookupEnv("DATABASE_DSN")
 	if !(envExists) {
 		postgreSQLAddress = *postgreSQLFlag
 	}
+	if postgreSQLAddress == "" && configFilePath != "" {
+		postgreSQLAddress = configApp.PostgreSQL
+	}
 
+	cryptoKeyPath, envExists := os.LookupEnv("CRYPTO_KEY")
+	if !(envExists) {
+		cryptoKeyPath = *cryptoKeyPathFlag
+	}
+
+	if cryptoKeyPath == "" && configFilePath != "" {
+		cryptoKeyPath = configApp.CryptoKeyPath
+	}
+
+	var storeInterval int
+
+	storeIntervalEnv, envExists := os.LookupEnv("STORE_INTERVAL")
+	if !(envExists) {
+		storeInterval = *storeIntervalFlag
+	} else {
+		storeInterval, err = strconv.Atoi(storeIntervalEnv)
+		if err != nil {
+			fmt.Println("Error when converting string to int:", err)
+		}
+	}
+
+	if storeInterval == 300 && configFilePath != "" {
+		if configApp.StoreInterval != "" {
+			storeInterval, err = strconv.Atoi(strings.Split(configApp.StoreInterval, "s")[0])
+			if err != nil {
+				fmt.Println("Error when converting string to int: ", err)
+			}
+		}
+	}
+
+	fileStore, envExists := os.LookupEnv("FILE_STORAGE_PATH")
+	if !(envExists) {
+		fileStore = *fileStorePathFlag
+	}
+
+	if fileStore == "/tmp/metrics-db.json" && configFilePath != "" {
+		fileStore = configApp.FileStorePath
+	}
+
+	var restore bool
+	restoreEnv, envExists := os.LookupEnv("RESTORE")
+	if !(envExists) {
+		restore = *restoreFlag
+	} else {
+		restore, err = strconv.ParseBool(restoreEnv)
+		if err != nil {
+			fmt.Println("Error when converting string to bool: ", err)
+		}
+	}
+
+	if restore && configFilePath != "" {
+		restore = configApp.Restore
+	}
+
+	Gctx, cancelG := context.WithCancel(context.Background())
+	shutdown := make(chan struct{})
 	if postgreSQLAddress != "" {
 		postgreSQLAddrPortDatabase := strings.Split((strings.Split((strings.Split(postgreSQLAddress, "@"))[1], "?"))[0], ":")
 		postgreSQLDatabase := "postgres"
@@ -77,9 +180,9 @@ func main() {
 			postgreSQLPort = postgreSQLPortDatabase[0]
 		}
 		postgreSQLAddr := postgreSQLAddrPortDatabase[0]
-		Storage = &psql.PostgreSQLConnection{Address: postgreSQLAddr, Port: postgreSQLPort, UserName: "postgres", Password: "postgres", DBName: postgreSQLDatabase}
+		Storage = &psql.PostgreSQLConnection{StoreType: storage.StoreType{Restore: restore, BackupTimer: storeInterval, FileStore: fileStore}, Address: postgreSQLAddr, Port: postgreSQLPort, UserName: "postgres", Password: "postgres", DBName: postgreSQLDatabase}
 	} else {
-		Storage = &str.MemStorage{}
+		Storage = &str.MemStorage{StoreType: storage.StoreType{Restore: restore, BackupTimer: storeInterval, FileStore: fileStore}}
 	}
 
 	logger, err := zap.NewDevelopment()
@@ -94,48 +197,50 @@ func main() {
 		secretKeyHash = *secretKeyFlag
 	}
 
-	App := Application{Storage: Storage, Logger: *logger.Sugar(), SecretKey: secretKeyHash}
+	if secretKeyHash == "" && configFilePath != "" {
+		secretKeyHash = configApp.SecretKey
+	}
+
+	trustedSubnetMask, trustedSubnetMaskExists := os.LookupEnv("TRUSTED_SUBNET")
+	if !(trustedSubnetMaskExists) {
+		trustedSubnetMask = *trustedSubnetFlag
+	}
+
+	if trustedSubnetMask == "" {
+		trustedSubnetMask = configApp.TrustedSubnet
+	}
+
+	App := Application{Storage: Storage, Logger: *logger.Sugar(), SecretKey: secretKeyHash, TrustedSubnet: trustedSubnetMask}
 
 	App.Logger.Infow(
 		"Starting server",
 		"addr", serverAddress,
 	)
 
-	storeInterval := 300
-	restore := true
-	storeIntervalEnv, envExists := os.LookupEnv("STORE_INTERVAL")
-	if !(envExists) {
-		storeInterval = *storeIntervalFlag
-	} else {
-		storeInterval, err = strconv.Atoi(storeIntervalEnv)
+	if cryptoKeyPath != "" {
+		file, err := os.Open(cryptoKeyPath)
 		if err != nil {
-			App.Logger.Errorln("Error when converting string to int: ", err)
+			App.Logger.Errorln("Error while openning file with crypto key: ", err)
+		}
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			App.CryptoKey += scanner.Text() + "\n"
 		}
 	}
 
-	fileStore, envExists := os.LookupEnv("FILE_STORAGE_PATH")
-	if !(envExists) {
-		fileStore = *fileStorePathFlag
-	}
-
-	restoreEnv, envExists := os.LookupEnv("RESTORE")
-	if !(envExists) {
-		restore = *restoreFlag
-	} else {
-		restore, err = strconv.ParseBool(restoreEnv)
-		if err != nil {
-			App.Logger.Errorln("Error when converting string to bool: ", err)
-		}
-	}
-
-	err = Storage.Init(restore, fileStore, storeInterval)
+	err = Storage.Init(shutdown, Gctx)
 	if err != nil {
-		fmt.Println(err)
+		fileStore = ""
+		App.Logger.Errorln("Error while database initialization: ", err)
 	}
 
 	commonMiddlewares := []data.Middleware{}
-	if secretKeyHash != "" {
+	if secretKeyHash != "" && App.TrustedSubnet != "" {
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareHash, App.MiddlewareTrustedIP, App.MiddlewareZipper, App.MiddlewareLogger)
+	} else if secretKeyHash != "" {
 		commonMiddlewares = append(commonMiddlewares, App.MiddlewareHash, App.MiddlewareZipper, App.MiddlewareLogger)
+	} else if App.TrustedSubnet != "" {
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareTrustedIP, App.MiddlewareZipper, App.MiddlewareLogger)
 	} else {
 		commonMiddlewares = append(commonMiddlewares, App.MiddlewareZipper, App.MiddlewareLogger)
 	}
@@ -159,9 +264,28 @@ func main() {
 		}
 	}()
 
-	err = http.ListenAndServe(serverAddress, r)
-	if err != nil {
+	srv := http.Server{Addr: serverAddress, Handler: r}
+
+	gracefulSutdown := make(chan os.Signal, 1)
+
+	signal.Notify(gracefulSutdown, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-gracefulSutdown
+		cancelG()
+		if (fileStore != "") && (storeInterval != 0) {
+			<-shutdown
+		} else {
+			close(shutdown)
+		}
+		srv.Shutdown(context.Background())
+	}()
+
+	err = srv.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed {
 		App.Logger.Fatalw(err.Error(), "event", "start server")
 	}
 
+	<-shutdown
+	App.Logger.Infoln("Server successfully shutdown!")
 }
