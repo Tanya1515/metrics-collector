@@ -145,15 +145,14 @@ func (App *Application) MiddlewareTrustedIP(next http.HandlerFunc) http.HandlerF
 				App.Logger.Errorln("Error during parsing CIDR")
 				return
 			}
-
-			trustedIP := cidr.Contains(net.IP(agentIP))
+			 
+			trustedIP := cidr.Contains(net.ParseIP(agentIP))
 			if !trustedIP {
 				http.Error(w, "Untrusted IP-adress: access denied", http.StatusForbidden)
 				App.Logger.Errorln("Untrusted IP-adress: access denied")
 				return
 			}
 		}
-		// проверить, нужна ли здесь оболочка
 		next(w, r)
 	}
 }

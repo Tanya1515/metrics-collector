@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -20,8 +21,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
 	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
+	pb "github.com/Tanya1515/metrics-collector.git/cmd/grpc/proto"
 	storage "github.com/Tanya1515/metrics-collector.git/cmd/storage"
 	psql "github.com/Tanya1515/metrics-collector.git/cmd/storage/postgresql"
 	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
@@ -41,6 +44,13 @@ type Application struct {
 	TrustedSubnet string
 }
 
+type MetricsServer struct {
+	// App - application fo storing metrics
+	App Application
+	// type pb.Unimplemented<TypeName> is used for backward compatibility
+	pb.UnimplementedMetricsServer
+}
+
 func init() {
 	serverAddressFlag = flag.String("a", "localhost:8080", "server address")
 	postgreSQLFlag = flag.String("d", "", "credentials for database")
@@ -51,6 +61,7 @@ func init() {
 	cryptoKeyPathFlag = flag.String("crypto-key", "", "path to key for asymmetrical encryption")
 	configFilePathFlag = flag.String("config", "", "path to config file for the application")
 	trustedSubnetFlag = flag.String("t", "", "CIDR for trusted IP-addresses")
+	grpcAgentFlag = flag.Bool("g", false, "use grpc for connecting with agent")
 }
 
 var (
@@ -63,6 +74,7 @@ var (
 	cryptoKeyPathFlag  *string
 	configFilePathFlag *string
 	trustedSubnetFlag  *string
+	grpcAgentFlag      *bool
 	buildVersion       string = "N/A"
 	buildDate          string = "N/A"
 	buildCommit        string = "N/A"
@@ -165,6 +177,21 @@ func main() {
 		restore = configApp.Restore
 	}
 
+	var grpcServe bool
+	grpcAgentEnv, envExists := os.LookupEnv("GRPC")
+	if !(envExists) {
+		grpcServe = *grpcAgentFlag
+	} else {
+		grpcServe, err = strconv.ParseBool(grpcAgentEnv)
+		if err != nil {
+			fmt.Println("Error when converting string to bool: ", err)
+		}
+	}
+
+	if !grpcServe && configFilePath != "" {
+		grpcServe = configApp.GRPC
+	}
+
 	Gctx, cancelG := context.WithCancel(context.Background())
 	shutdown := make(chan struct{})
 	if postgreSQLAddress != "" {
@@ -263,6 +290,29 @@ func main() {
 		}
 	}()
 
+	var s *grpc.Server
+	if grpcServe {
+		App.Logger.Infoln("Starting grpc server for getting agent metrics")
+		listen, err := net.Listen("tcp", ":3200")
+		if err != nil {
+			App.Logger.Errorln("Error while trying to reserve port 3200 for grpc server")
+		}
+		if App.TrustedSubnet != "" {
+			s = grpc.NewServer(grpc.ChainStreamInterceptor(App.InterceptorTrustedIP, App.InterceptorLogger))
+		} else {
+			s = grpc.NewServer(grpc.ChainStreamInterceptor(App.InterceptorLogger))
+		}
+
+		pb.RegisterMetricsServer(s, &MetricsServer{App: App})
+		go func() {
+
+			App.Logger.Infoln("Start gRPC server")
+			if err := s.Serve(listen); err != nil {
+				App.Logger.Errorln("Error, while trying to start grpc server: ", err)
+			}
+		}()
+	}
+
 	srv := http.Server{Addr: serverAddress, Handler: r}
 
 	gracefulSutdown := make(chan os.Signal, 1)
@@ -286,6 +336,8 @@ func main() {
 		if err != nil {
 			App.Logger.Errorln("Error while closing connection with storage: ", err)
 		}
+		srv.Shutdown(context.Background())
+		s.GracefulStop()
 	}()
 
 	err = srv.ListenAndServe()
