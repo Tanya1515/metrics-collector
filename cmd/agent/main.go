@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	_ "net/http/pprof"
@@ -29,9 +30,13 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 	retryerr "github.com/Tanya1515/metrics-collector.git/cmd/errors"
+	pb "github.com/Tanya1515/metrics-collector.git/cmd/grpc/proto"
 )
 
 var (
@@ -45,6 +50,7 @@ var (
 	secretKeyFlag           *string
 	cryptoKeyPathFlag       *string
 	configFilePathFlag      *string
+	grpcAgentFlag           *bool
 	limitServerRequestsFlag *int
 	buildVersion            string = "N/A"
 	buildDate               string = "N/A"
@@ -59,6 +65,7 @@ func init() {
 	limitServerRequestsFlag = flag.Int("l", 1, "limit of requests to server")
 	cryptoKeyPathFlag = flag.String("crypto-key", "", "path to key for asymmetrical encryption")
 	configFilePathFlag = flag.String("config", "", "path to config file for the application")
+	grpcAgentFlag = flag.Bool("g", false, "use grpc for connecting with agent")
 }
 
 // MakeMetrics - make list of data.Metrics from map.
@@ -195,6 +202,12 @@ func main() {
 	fmt.Println("Build commit: ", buildCommit)
 	var err error
 	var cryptoKey []byte
+
+	var clientGRPC pb.MetricsClient
+	var clientREST *resty.Client
+	var clientStream grpc.ClientStreamingClient[pb.MetricsRequest, pb.MetricsResponse]
+	var md metadata.MD
+
 	chansPollCount := []chan int64{
 		make(chan int64),
 		make(chan int64),
@@ -203,8 +216,6 @@ func main() {
 	defer close(chansPollCount[0])
 	defer close(chansPollCount[1])
 	chanMetrics := make(chan []data.Metrics, 10)
-
-	client := resty.New()
 
 	logger, err := zap.NewDevelopment()
 	if err != nil {
@@ -264,6 +275,21 @@ func main() {
 				Logger.Errorln("Error while report interval transforming to int: ", err)
 			}
 		}
+	}
+
+	var grpcServe bool
+	grpcAgentEnv, envExists := os.LookupEnv("GRPC")
+	if !(envExists) {
+		grpcServe = *grpcAgentFlag
+	} else {
+		grpcServe, err = strconv.ParseBool(grpcAgentEnv)
+		if err != nil {
+			fmt.Println("Error when converting string to bool: ", err)
+		}
+	}
+
+	if !grpcServe && configFilePath != "" {
+		grpcServe = configAgent.GRPC
 	}
 
 	cryptoKeyPath, envExists := os.LookupEnv("CRYPTO_KEY")
@@ -351,6 +377,19 @@ func main() {
 		}
 	}
 
+	if grpcServe {
+		conn, err := grpc.NewClient(":3200", grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		clientGRPC = pb.NewMetricsClient(conn)
+
+		defer conn.Close()
+	} else {
+		clientREST = resty.New()
+	}
+
 	sem := make(chan struct{}, limitRequests)
 	for {
 		select {
@@ -387,53 +426,76 @@ func main() {
 						defer wg.Done()
 						metrics := <-chanMetrics
 						var sign []byte
-
-						compressedMetrics, err := data.Compress(&metrics)
-						if err != nil {
-							resultChannel <- err
-							return
-
-						}
-						if cryptoKey != nil {
-							compressedMetrics, err = data.EncryptData(compressedMetrics, cryptoKey)
+						var compressedMetrics []byte
+						var metricRequest pb.MetricsRequest
+						if !grpcServe {
+							compressedMetrics, err = data.Compress(&metrics)
 							if err != nil {
 								resultChannel <- err
 								return
 							}
-						}
-						if secretKeyHash != "" {
-							h := hmac.New(sha256.New, []byte(secretKeyHash))
-							h.Write(compressedMetrics)
-							sign = h.Sum(nil)
+
+							if cryptoKey != nil {
+								compressedMetrics, err = data.EncryptData(compressedMetrics, cryptoKey)
+								if err != nil {
+									resultChannel <- err
+									return
+								}
+							}
+
+							if secretKeyHash != "" {
+								h := hmac.New(sha256.New, []byte(secretKeyHash))
+								h.Write(compressedMetrics)
+								sign = h.Sum(nil)
+							}
+
+						} else {
+							metricsProtobuf := data.ConvertDataProtobuf(metrics)
+							metricRequest = pb.MetricsRequest{Metrics: metricsProtobuf}
 						}
 
 						sem <- struct{}{}
 						defer func() { <-sem }()
 						for i := 0; i <= 3; i++ {
-							if secretKeyHash != "" && cryptoKey != nil {
-								_, err = client.R().
-									SetHeader("Content-Type", "application/json").
-									SetHeader("Content-Encoding", "gzip").
-									SetHeader("X-Encrypted", "rsa").
-									SetHeader("X-Real-IP", address).
-									SetHeader("HashSHA256", hex.EncodeToString(sign)).
-									SetBody(compressedMetrics).
-									Post(requestString)
-							} else if cryptoKey != nil {
-								_, err = client.R().
-									SetHeader("Content-Type", "application/json").
-									SetHeader("Content-Encoding", "gzip").
-									SetHeader("X-Real-IP", address).
-									SetHeader("X-Encrypted", "rsa").
-									SetBody(compressedMetrics).
-									Post(requestString)
+							if grpcServe {
+								md = metadata.New(map[string]string{"X-Real-IP": address})
+
+								ctx := metadata.NewOutgoingContext(context.Background(), md)
+								clientStream, err = clientGRPC.SendMetrics(ctx)
+								if err != nil {
+									Logger.Errorf("Error while openning client streaming: ", err)
+								} else {
+									err = clientStream.SendMsg(&metricRequest)
+									if err != nil {
+										Logger.Errorf("Error while sending GRPC metric: ", err)
+									}
+								}
 							} else {
-								_, err = client.R().
-									SetHeader("Content-Type", "application/json").
-									SetHeader("X-Real-IP", address).
-									SetHeader("Content-Encoding", "gzip").
-									SetBody(compressedMetrics).
-									Post(requestString)
+								if secretKeyHash != "" && cryptoKey != nil {
+									_, err = clientREST.R().
+										SetHeader("Content-Type", "application/json").
+										SetHeader("Content-Encoding", "gzip").
+										SetHeader("X-Encrypted", "rsa").
+										SetHeader("X-Real-IP", address).
+										SetHeader("HashSHA256", hex.EncodeToString(sign)).
+										SetBody(compressedMetrics).
+										Post(requestString)
+								} else if cryptoKey != nil {
+									_, err = clientREST.R().
+										SetHeader("Content-Type", "application/json").
+										SetHeader("Content-Encoding", "gzip").
+										SetHeader("X-Real-IP", address).
+										SetHeader("X-Encrypted", "rsa").
+										SetBody(compressedMetrics).
+										Post(requestString)
+								} else {
+									_, err = clientREST.R().
+										SetHeader("Content-Type", "application/json").
+										SetHeader("X-Real-IP", address).
+										SetHeader("Content-Encoding", "gzip").
+										SetBody(compressedMetrics).
+										Post(requestString)
+								}
 							}
 							if err == nil {
 								chanPollCount <- 0
