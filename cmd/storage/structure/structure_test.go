@@ -4,9 +4,10 @@ import (
 	"context"
 	"testing"
 
-	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 	_ "github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+
+	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 )
 
 type InMemoryStorageSuite struct {
@@ -17,7 +18,7 @@ type InMemoryStorageSuite struct {
 func (MS *InMemoryStorageSuite) SetupSuite() {
 	MS.Storage = &MemStorage{}
 	chanSh := make(chan struct{})
-	err := MS.Storage.Init(chanSh, context.Background())
+	err := MS.Storage.Init(context.Background(), chanSh)
 
 	MS.NoError(err)
 }

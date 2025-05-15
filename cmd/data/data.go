@@ -18,56 +18,37 @@ type Middleware func(http.HandlerFunc) http.HandlerFunc
 
 // ResultMetrics - type, that contains all gauge and counter metrics for representation them in HTML-format.
 type ResultMetrics struct {
-	// GaugeMetrics contains all gauge metrics.
-	GaugeMetrics string
-	// CounterMetrics contains all counter metrics.
-	CounterMetrics string
+	GaugeMetrics   string // All gauge metrics
+	CounterMetrics string // All counter
 }
 
 // Metrics - type, that describes all fields of recieved/saved metrics.
 type Metrics struct {
-	// ID - name of the metric
-	ID string `json:"id"`
-	// MType - type of the metric, available values are counter and gauge
-	MType string `json:"type"`
-	// Delta - int64 value, that is specified for counter metric
-	Delta *int64 `json:"delta,omitempty"`
-	// Value - float64 value, that is specified for gauge metric
-	Value *float64 `json:"value,omitempty"`
+	ID    string   `json:"id"`              // Metric name
+	MType string   `json:"type"`            // Metric Type (counter or gauge)
+	Delta *int64   `json:"delta,omitempty"` // Counter value
+	Value *float64 `json:"value,omitempty"` // Gauge Value
 }
 
 // ConfigApp - type, that describes all fields of the application config file
 type ConfigApp struct {
-	// ServerAddress - server address
-	ServerAddress string `json:"address"`
-	// StoreInterval - time duration for saving metrics
-	StoreInterval string `json:"store_interval"`
-	// FileStorePath - filename for storing metrics
-	FileStorePath string `json:"store_file"`
-	// Restore - flag for storing all info
-	Restore bool `json:"restore"`
-	// PostgreSQL - credentials for database
-	PostgreSQL string `json:"database_dsn"`
-	// SecretKey - secret key for hashing data
-	SecretKey string `json:"secret_key"`
-	// CryptoKeyPath - path to key for asymmetrical encryption
-	CryptoKeyPath string `json:"crypto_key"`
+	ServerAddress string `json:"address"`        // Server address
+	StoreInterval string `json:"store_interval"` // Time duration for saving metrics
+	FileStorePath string `json:"store_file"`     // Filename for storing metrics
+	Restore       bool   `json:"restore"`        // Flag for storing all info
+	PostgreSQL    string `json:"database_dsn"`   // Credentials for database
+	SecretKey     string `json:"secret_key"`     // Secret key for hashing data
+	CryptoKeyPath string `json:"crypto_key"`     // Path to key for asymmetrical encryption
 }
 
 // ConfigAgent - type, that describes all fields of the agent configuration
 type ConfigAgent struct {
-	// ReportInterval - time duration for sending metrics
-	ReportInterval string `json:"report_interval"`
-	// PollInterval - time duration for getting metrics
-	PollInterval string `json:"poll_interval"`
-	// ServerAddress - server address for sending metrics
-	ServerAddress string `json:"address"`
-	// SecretKey - secret key for creating hash
-	SecretKey string `json:"secret_key"`
-	// CryptoKeyPath - limit of requests to server
-	CryptoKeyPath string `json:"crypto_key"`
-	// LimitServerRequests - path to key for asymmetrical encryption
-	LimitServerRequests int `json:"limit_requests"`
+	ReportInterval      string `json:"report_interval"` // Time duration for saving metrics
+	PollInterval        string `json:"poll_interval"`   // Time duration for getting
+	ServerAddress       string `json:"address"`         // Address for sending metrics
+	SecretKey           string `json:"secret_key"`      // Secret hash for creating hash
+	CryptoKeyPath       string `json:"crypto_key"`      // Requests linit for server
+	LimitServerRequests int    `json:"limit_requests"`  // Key path for assymetrical encryption
 }
 
 // Compress - function for compressing list of metrics to slice of bytes
@@ -95,10 +76,6 @@ func Compress(metricData *[]Metrics) ([]byte, error) {
 
 	return b.Bytes(), nil
 }
-
-// Парсим публичный ключ из DER-данных
-
-// Проверяем, что это RSA ключ
 
 // EncryptData - function for encrypting metricData
 func EncryptData(data []byte, publicKeyStr []byte) ([]byte, error) {

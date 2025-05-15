@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 	"github.com/stretchr/testify/assert"
+
+	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 )
 
 func TestGetMetricsUtil(t *testing.T) {
@@ -23,7 +24,7 @@ func TestGetMetricsUtil(t *testing.T) {
 	}
 
 	t.Run(test.name, func(t *testing.T) {
-		go GetMetricsUtil(chanSend, chanMetrics, test.timer, context.Background())
+		go GetMetricsUtil(context.Background(), chanSend, chanMetrics, test.timer)
 		chanSend <- -1
 		metrics := <-chanMetrics
 
@@ -50,7 +51,7 @@ func TestGetMetrics(t *testing.T) {
 	}
 
 	t.Run(test.name, func(t *testing.T) {
-		go GetMetrics(chanSend, chanMetrics, test.timer, context.Background())
+		go GetMetrics(context.Background(), chanSend, chanMetrics, test.timer)
 		chanSend <- -1
 		metrics := <-chanMetrics
 

@@ -5,8 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 
-	storage "github.com/Tanya1515/metrics-collector.git/cmd/storage"
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	storage "github.com/Tanya1515/metrics-collector.git/cmd/storage"
 )
 
 type PostgreSQLConnection struct {
@@ -23,9 +24,9 @@ const (
 	MetricsTableName = "metrics"
 )
 
-func (db *PostgreSQLConnection) Init(shutdown chan struct{}, ctx context.Context) error {
+func (db *PostgreSQLConnection) Init(ctx context.Context, shutdown chan struct{}) error {
 	var err error
-	
+
 	ps := fmt.Sprintf("host=%s port=%s user=%s password=%s database=%s sslmode=disable",
 		db.Address, db.Port, db.UserName, db.Password, db.DBName)
 
@@ -43,17 +44,7 @@ func (db *PostgreSQLConnection) Init(shutdown chan struct{}, ctx context.Context
 		return err
 	}
 
-	if db.Restore {
-		err := db.Store(db)
-		if err != nil {
-			return err
-		}
-	}
-
-	if (db.FileStore != "") && (db.BackupTimer != 0) {
-
-		go db.SaveMetricsAsync(shutdown, ctx, db)
-	}
+	db.dbConn.Close()
 
 	return nil
 }
@@ -61,4 +52,14 @@ func (db *PostgreSQLConnection) Init(shutdown chan struct{}, ctx context.Context
 func (db *PostgreSQLConnection) CheckConnection(ctx context.Context) error {
 
 	return db.dbConn.PingContext(ctx)
+}
+
+func (db *PostgreSQLConnection) CloseConnections() error {
+	err := db.dbConn.Close()
+	if err != nil {
+		return err
+	}
+
+	close(db.Shutdown)
+	return nil
 }

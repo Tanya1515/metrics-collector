@@ -83,7 +83,7 @@ func MakeMetrics(mapMetrics map[string]float64, pollCount int64) []data.Metrics 
 }
 
 // GetMetrics - function, that collects all metrics from runtime library
-func GetMetrics(chanSend chan int64, chanMetrics chan []data.Metrics, timer time.Duration, ctx context.Context) {
+func GetMetrics(ctx context.Context, chanSend chan int64, chanMetrics chan []data.Metrics, timer time.Duration) {
 	var memStats runtime.MemStats
 	mapMetrics := make(map[string]float64)
 	var pollCount int64
@@ -139,7 +139,7 @@ func GetMetrics(chanSend chan int64, chanMetrics chan []data.Metrics, timer time
 }
 
 // GetMetricsUtil - function, that collects total/free memory and utilizatin of every cpu.
-func GetMetricsUtil(chanSend chan int64, chanMetrics chan []data.Metrics, timer time.Duration, ctx context.Context) {
+func GetMetricsUtil(ctx context.Context, chanSend chan int64, chanMetrics chan []data.Metrics, timer time.Duration) {
 	var memStats mem.VirtualMemoryStat
 	mapMetrics := make(map[string]float64)
 	var pollCount int64
@@ -327,9 +327,9 @@ func main() {
 	signal.Notify(gracefulSutdown, syscall.SIGINT, syscall.SIGTERM)
 	ctx, cancel := context.WithCancel(context.Background())
 
-	go GetMetrics(chansPollCount[0], chanMetrics, time.Duration(pollInt), ctx)
+	go GetMetrics(ctx, chansPollCount[0], chanMetrics, time.Duration(pollInt))
 
-	go GetMetricsUtil(chansPollCount[1], chanMetrics, time.Duration(pollInt), ctx)
+	go GetMetricsUtil(ctx, chansPollCount[1], chanMetrics, time.Duration(pollInt))
 	var wg sync.WaitGroup
 	go func() {
 		<-gracefulSutdown

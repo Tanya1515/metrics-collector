@@ -62,7 +62,7 @@ func (ts *PostgresTestSuite) SetupSuite() {
 	ts.cfg = cfg
 	ts.QueryTimeout = 5 * time.Second
 	chanSh := make(chan struct{})
-	require.NoError(ts.T(), cfg.Init(chanSh, context.Background()))
+	require.NoError(ts.T(), cfg.Init(context.Background(), chanSh))
 
 	ts.T().Logf("started postgres at %s:%s", ts.cfg.Address, ts.cfg.Port)
 }

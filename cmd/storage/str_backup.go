@@ -11,7 +11,7 @@ import (
 )
 
 type StoreStorage interface {
-	SaveMetricsAsync(shutdown chan struct{}, Gctx context.Context)
+	SaveMetricsAsync(Gctx context.Context)
 
 	SaveMetrics() (err error)
 
@@ -19,17 +19,18 @@ type StoreStorage interface {
 }
 
 type StoreType struct {
-	Restore bool
+	Restore     bool
 	BackupTimer int
 	FileStore   string
+	Shutdown    chan struct{}
 }
 
 // SaveMetricsAsync - function for saving metrics every
-func (S *StoreType) SaveMetricsAsync(shutdown chan struct{}, Gctx context.Context, storage RepositoryInterface) {
+func (S *StoreType) SaveMetricsAsync(Gctx context.Context, storage RepositoryInterface) {
 	for {
 		select {
 		case <-Gctx.Done():
-			close(shutdown)
+			close(S.Shutdown)
 			return
 		default:
 			S.SaveMetrics(storage)
@@ -51,8 +52,12 @@ func (S *StoreType) SaveMetrics(storage RepositoryInterface) (err error) {
 	for metricName, metricValue := range allGaugeMetrics {
 		gaugeMetric.ID = metricName
 		gaugeMetric.Value = &metricValue
-		allMetrics[i] = gaugeMetric
-		i += 1
+		if i < len(allMetrics) {
+			allMetrics[i] = gaugeMetric
+			i += 1
+		} else {
+			allMetrics = append(allMetrics, gaugeMetric)
+		}
 	}
 
 	allCounterMetrics, err := storage.GetAllCounterMetrics()
@@ -60,10 +65,16 @@ func (S *StoreType) SaveMetrics(storage RepositoryInterface) (err error) {
 		return
 	}
 	for metricName, metricValue := range allCounterMetrics {
+
 		counterMetric.ID = metricName
 		counterMetric.Delta = &metricValue
-		allMetrics[i] = counterMetric
-		i += 1
+		if i < len(allMetrics) {
+			allMetrics[i] = counterMetric
+			i += 1
+		} else {
+			allMetrics = append(allMetrics, counterMetric)
+		}
+
 	}
 
 	metricsBytes, err := json.Marshal(allMetrics)

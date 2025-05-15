@@ -4,8 +4,9 @@ import (
 	"context"
 	"sync"
 
-	storage "github.com/Tanya1515/metrics-collector.git/cmd/storage"
 	"github.com/pkg/errors"
+
+	storage "github.com/Tanya1515/metrics-collector.git/cmd/storage"
 )
 
 var errorMetricExists = errors.New("ErrMetricExists")
@@ -18,7 +19,7 @@ type MemStorage struct {
 	mutex          *sync.Mutex
 }
 
-func (S *MemStorage) Init(shutdown chan struct{}, Gctx context.Context) error {
+func (S *MemStorage) Init(Gctx context.Context, shutdown chan struct{}) error {
 	var mutex sync.Mutex
 	S.counterStorage = make(map[string]int64, 1000)
 	S.gaugeStorage = make(map[string]float64, 1000)
@@ -33,11 +34,16 @@ func (S *MemStorage) Init(shutdown chan struct{}, Gctx context.Context) error {
 
 	if (S.FileStore != "") && (S.BackupTimer != 0) {
 
-		go S.SaveMetricsAsync(shutdown, Gctx, S)
+		go S.SaveMetricsAsync(Gctx, S)
 	}
 	return nil
 }
 
 func (S *MemStorage) CheckConnection(ctx context.Context) error {
+	return nil
+}
+
+func (S *MemStorage) CloseConnections() error {
+	<-S.Shutdown
 	return nil
 }
