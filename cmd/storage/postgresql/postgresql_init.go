@@ -44,8 +44,6 @@ func (db *PostgreSQLConnection) Init(ctx context.Context, shutdown chan struct{}
 		return err
 	}
 
-	db.dbConn.Close()
-
 	return nil
 }
 
