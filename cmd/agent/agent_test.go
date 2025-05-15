@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ func TestGetMetricsUtil(t *testing.T) {
 	}
 
 	t.Run(test.name, func(t *testing.T) {
-		go GetMetricsUtil(chanSend, chanMetrics, test.timer)
+		go GetMetricsUtil(chanSend, chanMetrics, test.timer, context.Background())
 		chanSend <- -1
 		metrics := <-chanMetrics
 
@@ -49,7 +50,7 @@ func TestGetMetrics(t *testing.T) {
 	}
 
 	t.Run(test.name, func(t *testing.T) {
-		go GetMetrics(chanSend, chanMetrics, test.timer)
+		go GetMetrics(chanSend, chanMetrics, test.timer, context.Background())
 		chanSend <- -1
 		metrics := <-chanMetrics
 
