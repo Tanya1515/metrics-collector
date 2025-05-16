@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -112,30 +111,14 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 		var metricData data.Metrics
 		var buf bytes.Buffer
 
-		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
-			gz, err := gzip.NewReader(r.Body)
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				App.Logger.Errorln("Error during unpacking the request: ", err)
-				return
-			}
-			defer gz.Close()
-
-			_, err = buf.ReadFrom(gz)
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-		} else {
-			_, err := buf.ReadFrom(r.Body)
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusBadRequest)
-				App.Logger.Errorln("Bad request catched")
-				return
-			}
+		defer r.Body.Close()
+		_, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			App.Logger.Errorln("Bad request catched")
+			return
 		}
-
+		
 		if err := json.Unmarshal(buf.Bytes(), &metricData); err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			App.Logger.Errorln("Error during deserialization")
@@ -396,6 +379,7 @@ func (App *Application) GetMetric() http.HandlerFunc {
 		metricData := data.Metrics{}
 
 		var buf bytes.Buffer
+		defer r.Body.Close()
 		_, err := buf.ReadFrom(r.Body)
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusBadRequest)
@@ -487,59 +471,12 @@ func (App *Application) UpdateAllValues() http.HandlerFunc {
 		var buf bytes.Buffer
 
 		defer r.Body.Close()
-		if strings.Contains(r.Header.Get("X-Encrypted"), "rsa") {
-			_, err := buf.ReadFrom(r.Body)
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			result, err := data.DecryptData(App.CryptoKey, buf.Bytes())
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				App.Logger.Errorln("Error while decrypting data:", err)
-				return
-			}
-			reader := bytes.NewReader(result)
-			buf.Reset()
-			if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
-				gz, err := gzip.NewReader(reader)
-				if err != nil {
-					http.Error(rw, err.Error(), http.StatusInternalServerError)
-					App.Logger.Errorln("Error during unpacking the request: ", err)
-					return
-				}
-				defer gz.Close()
-
-				_, err = buf.ReadFrom(gz)
-				if err != nil {
-					App.Logger.Errorln("Error while reading from gz archive: ", err)
-					http.Error(rw, err.Error(), http.StatusInternalServerError)
-					return
-				}
-			}
-		} else if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
-			gz, err := gzip.NewReader(r.Body)
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				App.Logger.Errorln("Error during unpacking the request: ", err)
-				return
-			}
-			defer gz.Close()
-
-			_, err = buf.ReadFrom(gz)
-			if err != nil {
-				App.Logger.Errorln("Error while reading from gz archive: ", err)
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		} else {
-			_, err := buf.ReadFrom(r.Body)
-			if err != nil {
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				return
-			}
+		_, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
 		}
-
+		
 		if err := json.Unmarshal(buf.Bytes(), &metricDataList); err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			App.Logger.Errorln("Error during deserialization:", err)

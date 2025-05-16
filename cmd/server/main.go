@@ -218,9 +218,9 @@ func main() {
 
 	commonMiddlewares := []data.Middleware{}
 	if secretKeyHash != "" {
-		commonMiddlewares = append(commonMiddlewares, App.MiddlewareHash, App.MiddlewareZipper, App.MiddlewareLogger)
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareLogger, App.MiddlewareZipper, App.MiddlewareHash, App.MiddlewareUnpack, App.MiddlewareEncrypt)
 	} else {
-		commonMiddlewares = append(commonMiddlewares, App.MiddlewareZipper, App.MiddlewareLogger)
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareLogger, App.MiddlewareZipper, App.MiddlewareUnpack, App.MiddlewareEncrypt)
 	}
 
 	r := chi.NewRouter()
