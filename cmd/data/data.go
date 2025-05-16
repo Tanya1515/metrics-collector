@@ -4,7 +4,12 @@ package data
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"net/http"
 )
@@ -13,22 +18,37 @@ type Middleware func(http.HandlerFunc) http.HandlerFunc
 
 // ResultMetrics - type, that contains all gauge and counter metrics for representation them in HTML-format.
 type ResultMetrics struct {
-	// GaugeMetrics contains all gauge metrics.
-	GaugeMetrics string
-	// CounterMetrics contains all counter metrics.
-	CounterMetrics string
+	GaugeMetrics   string // All gauge metrics
+	CounterMetrics string // All counter
 }
 
 // Metrics - type, that describes all fields of recieved/saved metrics.
 type Metrics struct {
-	// ID - name of the metric
-	ID string `json:"id"`
-	// MType - type of the metric, available values are counter and gauge
-	MType string `json:"type"`
-	// Delta - int64 value, that is specified for counter metric
-	Delta *int64 `json:"delta,omitempty"`
-	// Value - float64 value, that is specified for gauge metric
-	Value *float64 `json:"value,omitempty"`
+	ID    string   `json:"id"`              // Metric name
+	MType string   `json:"type"`            // Metric Type (counter or gauge)
+	Delta *int64   `json:"delta,omitempty"` // Counter value
+	Value *float64 `json:"value,omitempty"` // Gauge Value
+}
+
+// ConfigApp - type, that describes all fields of the application config file
+type ConfigApp struct {
+	ServerAddress string `json:"address"`        // Server address
+	StoreInterval string `json:"store_interval"` // Time duration for saving metrics
+	FileStorePath string `json:"store_file"`     // Filename for storing metrics
+	Restore       bool   `json:"restore"`        // Flag for storing all info
+	PostgreSQL    string `json:"database_dsn"`   // Credentials for database
+	SecretKey     string `json:"secret_key"`     // Secret key for hashing data
+	CryptoKeyPath string `json:"crypto_key"`     // Path to key for asymmetrical encryption
+}
+
+// ConfigAgent - type, that describes all fields of the agent configuration
+type ConfigAgent struct {
+	ReportInterval      string `json:"report_interval"` // Time duration for saving metrics
+	PollInterval        string `json:"poll_interval"`   // Time duration for getting
+	ServerAddress       string `json:"address"`         // Address for sending metrics
+	SecretKey           string `json:"secret_key"`      // Secret hash for creating hash
+	CryptoKeyPath       string `json:"crypto_key"`      // Requests linit for server
+	LimitServerRequests int    `json:"limit_requests"`  // Key path for assymetrical encryption
 }
 
 // Compress - function for compressing list of metrics to slice of bytes
@@ -55,4 +75,48 @@ func Compress(metricData *[]Metrics) ([]byte, error) {
 	}
 
 	return b.Bytes(), nil
+}
+
+// EncryptData - function for encrypting metricData
+func EncryptData(data []byte, publicKeyStr []byte) ([]byte, error) {
+	block, _ := pem.Decode(publicKeyStr)
+	if block == nil {
+		return nil, fmt.Errorf("failed to decode PEM block")
+	}
+
+	if block.Type != "PUBLIC KEY" {
+		return nil, fmt.Errorf("invalid PEM block type: %s", block.Type)
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse public key: %v", err)
+	}
+
+	rsaPub, ok := pub.(*rsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("not an RSA public key")
+	}
+
+	ciphertext, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, rsaPub, data, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return ciphertext, nil
+}
+
+// DecryptData - function for decrypting data
+func DecryptData(privateKeyStr string, data []byte) ([]byte, error) {
+
+	block, _ := pem.Decode([]byte(privateKeyStr))
+	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	plaintext, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, privateKey, data, nil)
+	if err != nil {
+		return nil, err
+	}
+	return plaintext, nil
 }

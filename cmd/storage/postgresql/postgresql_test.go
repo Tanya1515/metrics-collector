@@ -1,4 +1,4 @@
-package storage
+package postgresql
 
 import (
 	"context"
@@ -61,8 +61,8 @@ func (ts *PostgresTestSuite) SetupSuite() {
 	ts.tc = pgc
 	ts.cfg = cfg
 	ts.QueryTimeout = 5 * time.Second
-
-	require.NoError(ts.T(), cfg.Init(false, "", 0))
+	chanSh := make(chan struct{})
+	require.NoError(ts.T(), cfg.Init(context.Background(), chanSh))
 
 	ts.T().Logf("started postgres at %s:%s", ts.cfg.Address, ts.cfg.Port)
 }

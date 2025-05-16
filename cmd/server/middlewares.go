@@ -14,7 +14,59 @@ import (
 	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 )
 
-// MiddlewareZipper - middleware for unpacking data from zip archive.
+// MiddlewareEncrypt - middleware for encrypting request body with crypto key
+func (App *Application) MiddlewareEncrypt(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var buf bytes.Buffer
+		var result []byte
+		if strings.Contains(r.Header.Get("X-Encrypted"), "rsa") {
+			_, err := buf.ReadFrom(r.Body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			result, err = data.DecryptData(App.CryptoKey, buf.Bytes())
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				App.Logger.Errorln("Error while decrypting data:", err)
+				return
+			}
+			r.Body = io.NopCloser(bytes.NewBuffer(result))
+			r.Header.Del("X-Encrypted")
+		}
+
+		next(w, r)
+	}
+}
+
+// MiddlewareUnpack - middleware for unpacking request body into zip archive
+func (App *Application) MiddlewareUnpack(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var buf bytes.Buffer
+		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+			gz, err := gzip.NewReader(r.Body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				App.Logger.Errorln("Error during unpacking the request: ", err)
+				return
+			}
+			defer gz.Close()
+
+			_, err = io.Copy(&buf, gz)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			r.Body = io.NopCloser(&buf)
+			r.Header.Del("Content-Encoding")
+		}
+
+		next(w, r)
+	}
+}
+
+// MiddlewareZipper - middleware for packing response into zip archive.
 func (App *Application) MiddlewareZipper(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		responseData := &ResponseData{
@@ -48,7 +100,7 @@ func (App *Application) MiddlewareZipper(next http.HandlerFunc) http.HandlerFunc
 	}
 }
 
-// MiddlewareLogger - function for logging information about processing request. 
+// MiddlewareLogger - function for logging information about processing request.
 func (App *Application) MiddlewareLogger(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		uri := r.RequestURI
@@ -81,7 +133,7 @@ func (App *Application) MiddlewareLogger(h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// MiddlewareHash - function for checking data integrity of request body. 
+// MiddlewareHash - function for checking data integrity of request body.
 func (App *Application) MiddlewareHash(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		responseData := &ResponseData{

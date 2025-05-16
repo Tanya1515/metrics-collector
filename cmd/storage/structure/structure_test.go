@@ -1,11 +1,13 @@
-package storage
+package structure
 
 import (
+	"context"
 	"testing"
 
-	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 	_ "github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+
+	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
 )
 
 type InMemoryStorageSuite struct {
@@ -15,7 +17,8 @@ type InMemoryStorageSuite struct {
 
 func (MS *InMemoryStorageSuite) SetupSuite() {
 	MS.Storage = &MemStorage{}
-	err := MS.Storage.Init(false, "", 0)
+	chanSh := make(chan struct{})
+	err := MS.Storage.Init(context.Background(), chanSh)
 
 	MS.NoError(err)
 }
