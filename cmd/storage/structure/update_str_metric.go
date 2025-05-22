@@ -1,4 +1,4 @@
-package storage
+package structure
 
 import (
 	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
@@ -9,8 +9,8 @@ func (S *MemStorage) RepositoryAddValue(metricName string, metricValue int64) er
 	S.counterStorage[metricName] = metricValue
 	S.mutex.Unlock()
 
-	if (S.fileStore != "") && (S.backupTimer == 0) {
-		S.SaveMetrics()
+	if (S.FileStore != "") && (S.BackupTimer == 0) {
+		S.SaveMetrics(S)
 	}
 
 	return nil
@@ -21,8 +21,8 @@ func (S *MemStorage) RepositoryAddCounterValue(metricName string, metricValue in
 	S.counterStorage[metricName] = S.counterStorage[metricName] + metricValue
 	S.mutex.Unlock()
 
-	if (S.fileStore != "") && (S.backupTimer == 0) {
-		S.SaveMetrics()
+	if (S.FileStore != "") && (S.BackupTimer == 0) {
+		S.SaveMetrics(S)
 	}
 
 	return nil
@@ -33,8 +33,8 @@ func (S *MemStorage) RepositoryAddGaugeValue(metricName string, metricValue floa
 	S.gaugeStorage[metricName] = metricValue
 	S.mutex.Unlock()
 
-	if (S.fileStore != "") && (S.backupTimer == 0) {
-		S.SaveMetrics()
+	if (S.FileStore != "") && (S.BackupTimer == 0) {
+		S.SaveMetrics(S)
 	}
 
 	return nil
@@ -51,8 +51,8 @@ func (S *MemStorage) RepositoryAddAllValues(metrics []data.Metrics) error {
 	}
 	S.mutex.Unlock()
 
-	if (S.fileStore != "") && (S.backupTimer == 0) {
-		S.SaveMetrics()
+	if (S.FileStore != "") && (S.BackupTimer == 0) {
+		S.SaveMetrics(S)
 	}
 	return nil
 }

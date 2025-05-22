@@ -9,15 +9,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
-	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
+
+	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
+	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
 )
 
 func ExampleApplication_GetMetricPath() {
 	storage := &str.MemStorage{}
-	storage.Init(false, "", 0)
+	chanSh := make(chan struct{})
+	storage.Init(context.Background(), chanSh)
 	storage.RepositoryAddCounterValue("PollCount", 1)
 	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
 
@@ -44,7 +46,7 @@ func ExampleApplication_GetMetricPath() {
 	res := w.Result()
 
 	resBody, err := io.ReadAll(res.Body)
-	
+
 	if err != nil {
 		panic(err)
 	}
@@ -59,7 +61,8 @@ func ExampleApplication_GetMetricPath() {
 
 func ExampleApplication_UpdateValuePath() {
 	storage := &str.MemStorage{}
-	storage.Init(false, "", 0)
+	chanSh := make(chan struct{})
+	storage.Init(context.Background(), chanSh)
 	storage.RepositoryAddCounterValue("PollCount", 1)
 	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
 
@@ -100,7 +103,8 @@ func ExampleApplication_UpdateValuePath() {
 
 func ExampleApplication_GetMetric() {
 	storage := &str.MemStorage{}
-	storage.Init(false, "", 0)
+	chanSh := make(chan struct{})
+	storage.Init(context.Background(), chanSh)
 	storage.RepositoryAddCounterValue("PollCount", 1)
 	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
 
@@ -146,7 +150,8 @@ func ExampleApplication_GetMetric() {
 func ExampleApplication_UpdateValue() {
 	storage := &str.MemStorage{}
 	var counterMetrciValue int64 = 4
-	storage.Init(false, "", 0)
+	chanSh := make(chan struct{})
+	storage.Init(context.Background(), chanSh)
 	storage.RepositoryAddCounterValue("PollCount", 1)
 	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
 
@@ -197,7 +202,8 @@ func ExampleApplication_UpdateValue() {
 
 func ExampleApplication_UpdateAllValues() {
 	storage := &str.MemStorage{}
-	storage.Init(false, "", 0)
+	chanSh := make(chan struct{})
+	storage.Init(context.Background(), chanSh)
 	storage.RepositoryAddCounterValue("PollCount", 1)
 	storage.RepositoryAddGaugeValue("BuckHashSys", 0.1)
 

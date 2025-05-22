@@ -11,7 +11,7 @@ import (
 
 type RepositoryInterface interface {
 	// Init - function for initialization in-memoty/PostgreSQL storage.
-	Init(restore bool, fileStore string, backupTime int) error
+	Init(ctx context.Context, shutdown chan struct{}) error
 
 	// RepositoryAddCounterValue - function for modifying/adding new counter metric in PostgreSQL/in-memory storage.
 	RepositoryAddCounterValue(metricName string, metricValue int64) error
@@ -39,4 +39,6 @@ type RepositoryInterface interface {
 
 	// RepositoryAddAllValues - function for updating all metrics as a batch of metrics in PostgreSQL/in-memory storage.
 	RepositoryAddAllValues(metrics []data.Metrics) error
+
+	CloseConnections() error
 }
