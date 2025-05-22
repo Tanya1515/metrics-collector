@@ -35,7 +35,7 @@ func (db *PostgreSQLConnection) Init(ctx context.Context, shutdown chan struct{}
 		return err
 	}
 
-	_, err = db.dbConn.Exec(`CREATE TABLE IF NOT EXISTS` + MetricsTableName + ` (Id BIGSERIAL PRIMARY KEY,
+	_, err = db.dbConn.Exec(`CREATE TABLE IF NOT EXISTS ` + MetricsTableName + ` (Id BIGSERIAL PRIMARY KEY,
 	                                                                metricName VARCHAR(100) NOT NULL UNIQUE,
 																	metricType VARCHAR(100) NOT NULL,
 																	Delta BIGINT, 
