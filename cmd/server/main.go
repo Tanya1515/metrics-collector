@@ -235,13 +235,13 @@ func main() {
 
 	commonMiddlewares := []data.Middleware{}
 	if secretKeyHash != "" && App.TrustedSubnet != "" {
-		commonMiddlewares = append(commonMiddlewares, App.MiddlewareHash, App.MiddlewareTrustedIP, App.MiddlewareZipper, App.MiddlewareLogger)
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareLogger, App.MiddlewareHash, App.MiddlewareTrustedIP, App.MiddlewareZipper, App.MiddlewareUnpack, App.MiddlewareEncrypt)
 	} else if secretKeyHash != "" {
-		commonMiddlewares = append(commonMiddlewares, App.MiddlewareHash, App.MiddlewareZipper, App.MiddlewareLogger)
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareLogger, App.MiddlewareHash, App.MiddlewareZipper, App.MiddlewareUnpack, App.MiddlewareEncrypt)
 	} else if App.TrustedSubnet != "" {
-		commonMiddlewares = append(commonMiddlewares, App.MiddlewareTrustedIP, App.MiddlewareZipper, App.MiddlewareLogger)
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareLogger, App.MiddlewareTrustedIP, App.MiddlewareZipper, App.MiddlewareUnpack, App.MiddlewareEncrypt)
 	} else {
-		commonMiddlewares = append(commonMiddlewares, App.MiddlewareZipper, App.MiddlewareLogger, App.MiddlewareUnpack, App.MiddlewareEncrypt)
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareLogger, App.MiddlewareZipper, App.MiddlewareUnpack, App.MiddlewareEncrypt)
 	}
 
 	r := chi.NewRouter()
