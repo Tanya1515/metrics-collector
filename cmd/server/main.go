@@ -241,7 +241,7 @@ func main() {
 	} else if App.TrustedSubnet != "" {
 		commonMiddlewares = append(commonMiddlewares, App.MiddlewareTrustedIP, App.MiddlewareZipper, App.MiddlewareLogger)
 	} else {
-		commonMiddlewares = append(commonMiddlewares, App.MiddlewareLogger, App.MiddlewareZipper, App.MiddlewareUnpack, App.MiddlewareEncrypt)
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareZipper, App.MiddlewareLogger, App.MiddlewareUnpack, App.MiddlewareEncrypt)
 	}
 
 	r := chi.NewRouter()
