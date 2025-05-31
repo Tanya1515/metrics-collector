@@ -260,16 +260,14 @@ func main() {
 		App.Logger.Errorln("Error while database initialization: ", err)
 	}
 
-	commonMiddlewares := []data.Middleware{}
-	if secretKeyHash != "" && App.TrustedSubnet != "" {
-		commonMiddlewares = append(commonMiddlewares, App.MiddlewareLogger, App.MiddlewareHash, App.MiddlewareTrustedIP, App.MiddlewareZipper, App.MiddlewareUnpack, App.MiddlewareEncrypt)
-	} else if secretKeyHash != "" {
-		commonMiddlewares = append(commonMiddlewares, App.MiddlewareLogger, App.MiddlewareHash, App.MiddlewareZipper, App.MiddlewareUnpack, App.MiddlewareEncrypt)
-	} else if App.TrustedSubnet != "" {
-		commonMiddlewares = append(commonMiddlewares, App.MiddlewareLogger, App.MiddlewareTrustedIP, App.MiddlewareZipper, App.MiddlewareUnpack, App.MiddlewareEncrypt)
-	} else {
-		commonMiddlewares = append(commonMiddlewares, App.MiddlewareLogger, App.MiddlewareZipper, App.MiddlewareUnpack, App.MiddlewareEncrypt)
-	}
+	commonMiddlewares := []data.Middleware{App.MiddlewareLogger, App.MiddlewareZipper, App.MiddlewareUnpack, App.MiddlewareEncrypt}
+	if secretKeyHash != "" {
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareHash)
+	} 
+	
+	if App.TrustedSubnet != "" {
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareTrustedIP)
+	} 
 
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
