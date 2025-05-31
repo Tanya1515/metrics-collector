@@ -142,10 +142,9 @@ func TestUpdateValuePath(t *testing.T) {
 			res := w.Result()
 			assert.Equal(t, test.result.code, res.StatusCode)
 
-			defer res.Body.Close()
 			resBody, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
-
+			defer res.Body.Close()
 			assert.Equal(t, test.result.response, string(resBody))
 
 			if test.modify == "counter" {
@@ -264,10 +263,9 @@ func TestUpdateValue(t *testing.T) {
 			res := w.Result()
 			assert.Equal(t, test.result.code, res.StatusCode)
 
-			defer res.Body.Close()
 			resBody, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
-
+			defer res.Body.Close()
 			assert.Equal(t, test.result.response, string(resBody))
 
 			if test.modify == "counter" {
@@ -398,9 +396,9 @@ func TestGetMetric(t *testing.T) {
 			res := w.Result()
 			assert.Equal(t, test.result.code, res.StatusCode)
 
-			defer res.Body.Close()
 			resBody, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
+			defer res.Body.Close()
 
 			assert.Equal(t, test.result.response, string(resBody))
 			assert.Equal(t, test.result.contentType, res.Header.Get("Content-Type"))
@@ -529,9 +527,9 @@ func TestGetMetricPath(t *testing.T) {
 			res := w.Result()
 			assert.Equal(t, test.result.code, res.StatusCode)
 
-			defer res.Body.Close()
 			resBody, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
+			defer res.Body.Close()
 
 			assert.Equal(t, test.result.response, string(resBody))
 			assert.Equal(t, test.result.contentType, res.Header.Get("Content-Type"))

@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -130,6 +131,29 @@ func (App *Application) MiddlewareLogger(h http.HandlerFunc) http.HandlerFunc {
 			"ResponseSize", responseData.size,
 		)
 
+	}
+}
+
+// MiddlewareTrustedIP - function for checking, if client IP-address is trusted
+func (App *Application) MiddlewareTrustedIP(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		agentIP := r.Header.Get("X-Real-IP")
+		if agentIP != "" {
+			_, cidr, err := net.ParseCIDR(App.TrustedSubnet)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				App.Logger.Errorln("Error during parsing CIDR")
+				return
+			}
+			 
+			trustedIP := cidr.Contains(net.ParseIP(agentIP))
+			if !trustedIP {
+				http.Error(w, "Untrusted IP-adress: access denied", http.StatusForbidden)
+				App.Logger.Errorln("Untrusted IP-adress: access denied")
+				return
+			}
+		}
+		next(w, r)
 	}
 }
 

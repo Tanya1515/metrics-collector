@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package github.com.Tanya1515.metrics_collector.git.cmd.grpc.proto;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "grpc/proto";
+
+message Metric {
+    string id = 1; 
+    enum MType {
+        COUNTER = 0;
+        GAUGE = 1;
+    }
+    MType mtype = 2;
+    oneof metricValue {
+        int64 delta = 3;
+        double value = 4;
+    }
+}
+
+message Metrics {
+    repeated Metric metrics = 1;
+}
+
+message MetricsResponse {
+    string error = 1;
+}
+
+service ServeMetrics {
+  rpc SendMetrics(stream Metrics) returns (MetricsResponse);
+  rpc GetAllMetrics(google.protobuf.Empty) returns (Metrics);
+  rpc GetMetric(Metric) returns (Metric);
+  rpc PostMetric(Metric) returns (MetricsResponse);
+}
