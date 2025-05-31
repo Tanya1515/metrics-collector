@@ -203,9 +203,9 @@ func main() {
 	var err error
 	var cryptoKey []byte
 
-	var clientGRPC pb.MetricsClient
+	var clientGRPC pb.ServeMetricsClient
 	var clientREST *resty.Client
-	var clientStream grpc.ClientStreamingClient[pb.MetricsRequest, pb.MetricsResponse]
+	var clientStream grpc.ClientStreamingClient[pb.Metrics, pb.MetricsResponse]
 	var md metadata.MD
 
 	chansPollCount := []chan int64{
@@ -383,7 +383,7 @@ func main() {
 			log.Fatal(err)
 		}
 
-		clientGRPC = pb.NewMetricsClient(conn)
+		clientGRPC = pb.NewServeMetricsClient(conn)
 
 		defer conn.Close()
 	} else {
@@ -427,7 +427,7 @@ func main() {
 						metrics := <-chanMetrics
 						var sign []byte
 						var compressedMetrics []byte
-						var metricRequest pb.MetricsRequest
+						var metricRequest pb.Metrics
 						if !grpcServe {
 							compressedMetrics, err = data.Compress(&metrics)
 							if err != nil {
@@ -451,7 +451,7 @@ func main() {
 
 						} else {
 							metricsProtobuf := data.ConvertDataProtobuf(metrics)
-							metricRequest = pb.MetricsRequest{Metrics: metricsProtobuf}
+							metricRequest = pb.Metrics{Metrics: metricsProtobuf}
 						}
 
 						sem <- struct{}{}

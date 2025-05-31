@@ -48,7 +48,7 @@ type MetricsServer struct {
 	// App - application fo storing metrics
 	App Application
 	// type pb.Unimplemented<TypeName> is used for backward compatibility
-	pb.UnimplementedMetricsServer
+	pb.UnimplementedServeMetricsServer
 }
 
 func init() {
@@ -296,12 +296,12 @@ func main() {
 			App.Logger.Errorln("Error while trying to reserve port 3200 for grpc server")
 		}
 		if App.TrustedSubnet != "" {
-			s = grpc.NewServer(grpc.ChainStreamInterceptor(App.InterceptorTrustedIP, App.InterceptorLogger))
+			s = grpc.NewServer(grpc.ChainStreamInterceptor(App.StreamInterceptorTrustedIP, App.StreamInterceptorLogger), grpc.ChainUnaryInterceptor(App.InterceptorTrustedIP, App.InterceptorLogger))
 		} else {
-			s = grpc.NewServer(grpc.ChainStreamInterceptor(App.InterceptorLogger))
+			s = grpc.NewServer(grpc.ChainStreamInterceptor(App.StreamInterceptorLogger), grpc.ChainUnaryInterceptor(App.InterceptorTrustedIP, App.InterceptorLogger))
 		}
 
-		pb.RegisterMetricsServer(s, &MetricsServer{App: App})
+		pb.RegisterServeMetricsServer(s, &MetricsServer{App: App})
 		go func() {
 
 			App.Logger.Infoln("Start gRPC server")
