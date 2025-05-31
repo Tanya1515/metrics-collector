@@ -81,16 +81,13 @@ func (server *MetricsServer) GetAllMetrics(ctx context.Context, in *emptypb.Empt
 	allMetrics := make([]*pb.Metric, 100)
 	var i int
 
-	counterMetrics := make(map[string]int64, 100)
-	gaugeMetrics := make(map[string]float64, 100)
-
-	counterMetrics, err = server.App.Storage.GetAllCounterMetrics()
+	counterMetrics, err := server.App.Storage.GetAllCounterMetrics()
 	if err != nil {
 		server.App.Logger.Errorln("Error, while getting all counter metrics: ", err)
 		return nil, fmt.Errorf("error, while getting all counter metrics: %w", err)
 	}
 
-	gaugeMetrics, err = server.App.Storage.GetAllGaugeMetrics()
+	gaugeMetrics, err := server.App.Storage.GetAllGaugeMetrics()
 	if err != nil {
 		server.App.Logger.Errorln("Error, while getting all gauge metrics: ", err)
 		return nil, fmt.Errorf("error, while getting all gauge metrics: %w", err)
@@ -140,7 +137,7 @@ func (server *MetricsServer) GetMetric(ctx context.Context, inMetric *pb.Metric)
 		value, err := server.App.Storage.GetGaugeValueByName(inMetric.Id)
 		if err != nil {
 			server.App.Logger.Errorln("Error while adding gauge value: ", err)
-			return inMetric, fmt.Errorf("error while adding gauge metric: ", err)
+			return inMetric, fmt.Errorf("error while adding gauge metric: %w", err)
 		}
 		inMetric.MetricValue = &pb.Metric_Value{Value: value}
 	} else {
@@ -174,7 +171,7 @@ func (server *MetricsServer) PostMetric(ctx context.Context, inMetric *pb.Metric
 		if err != nil {
 			response.Error = "Error while adding gauge value"
 			server.App.Logger.Errorln("Error while adding gauge value: ", err)
-			return &response, fmt.Errorf("error while adding gauge metric: ", err)
+			return &response, fmt.Errorf("error while adding gauge metric: %w", err)
 		}
 	} else {
 		response.Error = "Incorrect metric type recieved"
