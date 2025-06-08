@@ -79,6 +79,9 @@ func (server *MetricsServer) GetAllMetrics(ctx context.Context, in *emptypb.Empt
 	var err error
 	var result pb.Metrics
 	allMetrics := make([]*pb.Metric, 100)
+	for j := range allMetrics {
+		allMetrics[j] = &pb.Metric{}
+	}
 	var i int
 
 	counterMetrics, err := server.App.Storage.GetAllCounterMetrics()
@@ -94,23 +97,25 @@ func (server *MetricsServer) GetAllMetrics(ctx context.Context, in *emptypb.Empt
 	}
 
 	for metricName, metric := range counterMetrics {
-		if i == 100 {
+		if i >= 100 {
 			allMetrics = append(allMetrics, &pb.Metric{Id: metricName, Mtype: pb.Metric_COUNTER, MetricValue: &pb.Metric_Delta{Delta: metric}})
 		} else {
 			allMetrics[i].Id = metricName
 			allMetrics[i].Mtype = pb.Metric_COUNTER
 			allMetrics[i].MetricValue = &pb.Metric_Delta{Delta: metric}
 		}
+		i += 1
 	}
 
 	for metricName, metric := range gaugeMetrics {
-		if i == 100 {
+		if i >= 100 {
 			allMetrics = append(allMetrics, &pb.Metric{Id: metricName, Mtype: pb.Metric_GAUGE, MetricValue: &pb.Metric_Value{Value: metric}})
 		} else {
 			allMetrics[i].Id = metricName
 			allMetrics[i].Mtype = pb.Metric_GAUGE
 			allMetrics[i].MetricValue = &pb.Metric_Value{Value: metric}
 		}
+		i += 1
 	}
 
 	result.Metrics = allMetrics
