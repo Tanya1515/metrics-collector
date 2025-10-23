@@ -12,6 +12,8 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net/http"
+
+	pb "github.com/Tanya1515/metrics-collector.git/cmd/grpc/proto"
 )
 
 type Middleware func(http.HandlerFunc) http.HandlerFunc
@@ -39,6 +41,8 @@ type ConfigApp struct {
 	PostgreSQL    string `json:"database_dsn"`   // Credentials for database
 	SecretKey     string `json:"secret_key"`     // Secret key for hashing data
 	CryptoKeyPath string `json:"crypto_key"`     // Path to key for asymmetrical encryption
+	TrustedSubnet string `json:"trusted_subnet"` // Trusted IP address range
+	GRPC          bool   `json:"grpc"`           // GRPC - use grpc protocol for getting metrics from agent
 }
 
 // ConfigAgent - type, that describes all fields of the agent configuration
@@ -49,6 +53,7 @@ type ConfigAgent struct {
 	SecretKey           string `json:"secret_key"`      // Secret hash for creating hash
 	CryptoKeyPath       string `json:"crypto_key"`      // Requests linit for server
 	LimitServerRequests int    `json:"limit_requests"`  // Key path for assymetrical encryption
+	GRPC                bool   `json:"grpc"`            // GRPC - use grpc protocol for sending metrics to server
 }
 
 // Compress - function for compressing list of metrics to slice of bytes
@@ -119,4 +124,23 @@ func DecryptData(privateKeyStr string, data []byte) ([]byte, error) {
 		return nil, err
 	}
 	return plaintext, nil
+}
+
+func ConvertDataProtobuf(dataMetrics []Metrics) []*pb.Metric {
+	protobufMetrics := make([]*pb.Metric, len(dataMetrics))
+	for key, metric := range dataMetrics {
+		var protobufMetric pb.Metric
+		if metric.MType == "counter" {
+			var counterValue pb.Metric_Delta
+			counterValue.Delta = *metric.Delta
+			protobufMetric = pb.Metric{Id: metric.ID, Mtype: pb.Metric_COUNTER, MetricValue: &counterValue}
+		} else {
+			var gaugeValue pb.Metric_Value
+			gaugeValue.Value = *metric.Value
+			protobufMetric = pb.Metric{Id: metric.ID, Mtype: pb.Metric_GAUGE, MetricValue: &gaugeValue}
+		}
+
+		protobufMetrics[key] = &protobufMetric
+	}
+	return protobufMetrics
 }

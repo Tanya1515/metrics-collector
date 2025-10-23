@@ -111,14 +111,15 @@ func (App *Application) UpdateValue() http.HandlerFunc {
 		var metricData data.Metrics
 		var buf bytes.Buffer
 
-		defer r.Body.Close()
 		_, err := buf.ReadFrom(r.Body)
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusBadRequest)
 			App.Logger.Errorln("Bad request catched")
 			return
 		}
-		
+
+		defer r.Body.Close()
+
 		if err := json.Unmarshal(buf.Bytes(), &metricData); err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			App.Logger.Errorln("Error during deserialization")
@@ -379,13 +380,14 @@ func (App *Application) GetMetric() http.HandlerFunc {
 		metricData := data.Metrics{}
 
 		var buf bytes.Buffer
-		defer r.Body.Close()
+
 		_, err := buf.ReadFrom(r.Body)
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusBadRequest)
 			App.Logger.Errorln("Bad request catched")
 			return
 		}
+		defer r.Body.Close()
 		if err = json.Unmarshal(buf.Bytes(), &metricData); err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			App.Logger.Errorln("Error during deserialization: ", err)
@@ -470,13 +472,13 @@ func (App *Application) UpdateAllValues() http.HandlerFunc {
 		metricDataList := make([]data.Metrics, 100)
 		var buf bytes.Buffer
 
-		defer r.Body.Close()
 		_, err := buf.ReadFrom(r.Body)
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		
+
+		defer r.Body.Close()
 		if err := json.Unmarshal(buf.Bytes(), &metricDataList); err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			App.Logger.Errorln("Error during deserialization:", err)

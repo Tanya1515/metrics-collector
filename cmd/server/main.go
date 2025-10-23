@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -20,8 +21,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
 	data "github.com/Tanya1515/metrics-collector.git/cmd/data"
+	pb "github.com/Tanya1515/metrics-collector.git/cmd/grpc/proto"
 	storage "github.com/Tanya1515/metrics-collector.git/cmd/storage"
 	psql "github.com/Tanya1515/metrics-collector.git/cmd/storage/postgresql"
 	str "github.com/Tanya1515/metrics-collector.git/cmd/storage/structure"
@@ -29,10 +32,23 @@ import (
 
 // Application - data type to describe the server work
 type Application struct {
-	Storage   storage.RepositoryInterface // Interface for saving metrics and other data
-	Logger    zap.SugaredLogger           // Application logger
-	SecretKey string                      // Key for data integrity check
-	CryptoKey string                      // Key for encrypting incoming data
+	// Storage - object interface for saving data.
+	Storage storage.RepositoryInterface
+	// Logger - logger for saving info about all events in the application.
+	Logger zap.SugaredLogger
+	// SecretKey - key for chacking hash of incoming data
+	SecretKey string
+	// CryptoKey - key for encrypting incoming data (asymmetrical encryption)
+	CryptoKey string
+	// TrustedSubnet - Mask for trusted subnet
+	TrustedSubnet string
+}
+
+type MetricsServer struct {
+	// App - application fo storing metrics
+	App Application
+	// type pb.Unimplemented<TypeName> is used for backward compatibility
+	pb.UnimplementedServeMetricsServer
 }
 
 func init() {
@@ -44,6 +60,8 @@ func init() {
 	secretKeyFlag = flag.String("k", "", "secret key for hash")
 	cryptoKeyPathFlag = flag.String("crypto-key", "", "path to key for asymmetrical encryption")
 	configFilePathFlag = flag.String("config", "", "path to config file for the application")
+	trustedSubnetFlag = flag.String("t", "", "CIDR for trusted IP-addresses")
+	grpcAgentFlag = flag.Bool("g", false, "use grpc for connecting with agent")
 }
 
 var (
@@ -55,6 +73,8 @@ var (
 	secretKeyFlag      *string
 	cryptoKeyPathFlag  *string
 	configFilePathFlag *string
+	trustedSubnetFlag  *string
+	grpcAgentFlag      *bool
 	buildVersion       string = "N/A"
 	buildDate          string = "N/A"
 	buildCommit        string = "N/A"
@@ -157,6 +177,21 @@ func main() {
 		restore = configApp.Restore
 	}
 
+	var grpcServe bool
+	grpcAgentEnv, envExists := os.LookupEnv("GRPC")
+	if !(envExists) {
+		grpcServe = *grpcAgentFlag
+	} else {
+		grpcServe, err = strconv.ParseBool(grpcAgentEnv)
+		if err != nil {
+			fmt.Println("Error when converting string to bool: ", err)
+		}
+	}
+
+	if !grpcServe && configFilePath != "" {
+		grpcServe = configApp.GRPC
+	}
+
 	Gctx, cancelG := context.WithCancel(context.Background())
 	shutdown := make(chan struct{})
 	if postgreSQLAddress != "" {
@@ -192,7 +227,16 @@ func main() {
 		secretKeyHash = configApp.SecretKey
 	}
 
-	App := Application{Storage: Storage, Logger: *logger.Sugar(), SecretKey: secretKeyHash}
+	trustedSubnetMask, trustedSubnetMaskExists := os.LookupEnv("TRUSTED_SUBNET")
+	if !(trustedSubnetMaskExists) {
+		trustedSubnetMask = *trustedSubnetFlag
+	}
+
+	if trustedSubnetMask == "" {
+		trustedSubnetMask = configApp.TrustedSubnet
+	}
+
+	App := Application{Storage: Storage, Logger: *logger.Sugar(), SecretKey: secretKeyHash, TrustedSubnet: trustedSubnetMask}
 
 	App.Logger.Infow(
 		"Starting server",
@@ -216,12 +260,14 @@ func main() {
 		App.Logger.Errorln("Error while database initialization: ", err)
 	}
 
-	commonMiddlewares := []data.Middleware{}
+	commonMiddlewares := []data.Middleware{App.MiddlewareLogger, App.MiddlewareZipper, App.MiddlewareUnpack, App.MiddlewareEncrypt}
 	if secretKeyHash != "" {
-		commonMiddlewares = append(commonMiddlewares, App.MiddlewareLogger, App.MiddlewareZipper, App.MiddlewareHash, App.MiddlewareUnpack, App.MiddlewareEncrypt)
-	} else {
-		commonMiddlewares = append(commonMiddlewares, App.MiddlewareLogger, App.MiddlewareZipper, App.MiddlewareUnpack, App.MiddlewareEncrypt)
-	}
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareHash)
+	} 
+	
+	if App.TrustedSubnet != "" {
+		commonMiddlewares = append(commonMiddlewares, App.MiddlewareTrustedIP)
+	} 
 
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
@@ -241,6 +287,29 @@ func main() {
 			App.Logger.Fatalw(err.Error(), "event", "start server for pprof")
 		}
 	}()
+
+	var s *grpc.Server
+	if grpcServe {
+		App.Logger.Infoln("Starting grpc server for getting agent metrics")
+		listen, err := net.Listen("tcp", ":3200")
+		if err != nil {
+			App.Logger.Errorln("Error while trying to reserve port 3200 for grpc server")
+		}
+		if App.TrustedSubnet != "" {
+			s = grpc.NewServer(grpc.ChainStreamInterceptor(App.StreamInterceptorTrustedIP, App.StreamInterceptorLogger), grpc.ChainUnaryInterceptor(App.InterceptorTrustedIP, App.InterceptorLogger))
+		} else {
+			s = grpc.NewServer(grpc.ChainStreamInterceptor(App.StreamInterceptorLogger), grpc.ChainUnaryInterceptor(App.InterceptorTrustedIP, App.InterceptorLogger))
+		}
+
+		pb.RegisterServeMetricsServer(s, &MetricsServer{App: App})
+		go func() {
+
+			App.Logger.Infoln("Start gRPC server")
+			if err := s.Serve(listen); err != nil {
+				App.Logger.Errorln("Error, while trying to start grpc server: ", err)
+			}
+		}()
+	}
 
 	srv := http.Server{Addr: serverAddress, Handler: r}
 
@@ -265,6 +334,8 @@ func main() {
 		if err != nil {
 			App.Logger.Errorln("Error while closing connection with storage: ", err)
 		}
+		srv.Shutdown(context.Background())
+		s.GracefulStop()
 	}()
 
 	err = srv.ListenAndServe()

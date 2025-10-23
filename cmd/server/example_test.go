@@ -131,7 +131,6 @@ func ExampleApplication_GetMetric() {
 	h(w, request)
 
 	res := w.Result()
-	defer res.Body.Close()
 
 	fmt.Println(res.StatusCode)
 
@@ -139,6 +138,8 @@ func ExampleApplication_GetMetric() {
 	if err != nil {
 		panic(err)
 	}
+
+	defer res.Body.Close()
 	fmt.Println(string(resBody))
 
 	// Output:
@@ -178,7 +179,6 @@ func ExampleApplication_UpdateValue() {
 	h(w, request)
 
 	res := w.Result()
-	defer res.Body.Close()
 
 	fmt.Println(res.StatusCode)
 
